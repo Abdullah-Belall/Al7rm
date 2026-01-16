@@ -1,0 +1,66 @@
+version: "3.8"
+
+services:
+  al7ram-backend:
+    container_name: al7ram-backend-server
+    build:
+      context: ./backend
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # Database Configuration
+      DB_HOST: al7ram-db
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: al7ram_support
+      # Frontend URL (for CORS)
+      FRONTEND_URL: https://al7ram.nabdtech.store
+      # JWT Secret (IMPORTANT: Change this to a secure random string)
+      JWT_SECRET: change-this-to-a-secure-random-string-min-32-chars
+    ports:
+      - "3002:3001"
+    depends_on:
+      - al7ram-db
+    networks:
+      - central-net
+    restart: always
+
+  al7ram-frontend:
+    container_name: al7ram-frontend-server
+    build:
+      context: ./frontend
+    environment:
+      NODE_ENV: production
+      # API URL (Backend URL)
+      NEXT_PUBLIC_API_URL: https://al7ram-api.nabdtech.store
+      # WebSocket URL (same as API URL)
+      NEXT_PUBLIC_WS_URL: https://al7ram-api.nabdtech.store
+    ports:
+      - "3003:3000"
+    depends_on:
+      - al7ram-backend
+    networks:
+      - central-net
+    restart: always
+
+  al7ram-db:
+    image: postgres:15
+    container_name: al7ram-db
+    environment:
+      POSTGRES_DB: al7ram_support
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - al7ram_db_data:/var/lib/postgresql/data
+    networks:
+      - central-net
+    restart: always
+
+networks:
+  central-net:
+    external: true
+
+volumes:
+  al7ram_db_data:
+
