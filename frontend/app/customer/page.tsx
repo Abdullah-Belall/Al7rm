@@ -9,11 +9,13 @@ import { Plus, Phone, Clock, CheckCircle, XCircle } from 'lucide-react'
 import CreateRequestModal from '@/components/CreateRequestModal'
 import VideoCallModal from '@/components/VideoCallModal'
 import { io, Socket } from 'socket.io-client'
+import { NEXT_PUBLIC_API_URL } from '@/base'
 
 interface SupportRequest {
   id: string
   description: string
   category: string
+  customerId: string
   status: string
   supporter?: {
     id: string
@@ -133,7 +135,7 @@ export default function CustomerPage() {
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'customer') return
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001'
+    const wsUrl = NEXT_PUBLIC_API_URL
     const socket = io(`${wsUrl}/support-requests`, {
       transports: ['websocket', 'polling'],
     })

@@ -5,6 +5,7 @@ import { io, Socket } from 'socket.io-client'
 import { X, PhoneOff, Video, VideoOff, Mic, MicOff } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
+import { NEXT_PUBLIC_API_URL } from '@/base'
 
 interface VideoCall {
   id: string
@@ -43,7 +44,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
     const userId = user?.id
     if (!roomId || !userId) return
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001'
+    const wsUrl = NEXT_PUBLIC_API_URL
     const newSocket = io(wsUrl, {
       transports: ['websocket', 'polling'],
     })
@@ -94,9 +95,34 @@ export default function VideoCallModal({ call, onClose }: Props) {
         })
 
         pc.ontrack = (event) => {
-          console.log('Received remote stream')
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = event.streams[0]
+          console.log('Received remote stream - ontrack event:', {
+            streams: event.streams.length,
+            track: event.track.kind,
+            id: event.track.id
+          })
+          if (event.streams && event.streams.length > 0) {
+            const remoteStream = event.streams[0]
+            console.log('Setting remote video stream:', {
+              id: remoteStream.id,
+              tracks: remoteStream.getTracks().length
+            })
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = remoteStream
+              // Force play
+              remoteVideoRef.current.play().catch(err => {
+                console.error('Error playing remote video:', err)
+              })
+            }
+          } else if (event.track) {
+            // Fallback: create a new stream from the track
+            console.log('Creating stream from track')
+            const newStream = new MediaStream([event.track])
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = newStream
+              remoteVideoRef.current.play().catch(err => {
+                console.error('Error playing remote video:', err)
+              })
+            }
           }
         }
 
@@ -111,6 +137,19 @@ export default function VideoCallModal({ call, onClose }: Props) {
 
         pc.oniceconnectionstatechange = () => {
           console.log('ICE connection state:', pc.iceConnectionState)
+          if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+            console.log('ICE connection established successfully')
+          } else if (pc.iceConnectionState === 'failed') {
+            console.error('ICE connection failed')
+          }
+        }
+        
+        pc.onconnectionstatechange = () => {
+          console.log('Peer connection state:', pc.connectionState)
+        }
+        
+        pc.onsignalingstatechange = () => {
+          console.log('Signaling state:', pc.signalingState)
         }
 
         peerConnectionRef.current = pc
@@ -150,59 +189,131 @@ export default function VideoCallModal({ call, onClose }: Props) {
         roomId,
         userId,
       })
-      // Don't start call yet - wait for user-joined event
+      console.log('Emitted join-room:', { roomId, userId })
+      
+      // Fallback: Start call after a delay if user-joined doesn't fire
+      // This handles the case where we're the first user or the other user is already connected
+      setTimeout(async () => {
+        if (!localStreamRef.current && !isCallStarted && newSocket.connected) {
+          console.log('Fallback: Starting call after timeout (no user-joined event)')
+          const room = newSocket.io.engine.transport.name
+          console.log('Transport:', room)
+          // Check if we should start - if we're connected and haven't started, start now
+          await startCallHandler(true)
+        }
+      }, 2000)
     })
 
     newSocket.on('user-joined', async (data) => {
-      console.log('User joined:', data)
+      console.log('User joined event received:', data)
       // Make sure socket ref is set
       socketRef.current = newSocket
       
       // Wait a bit to avoid race condition when both users join at the same time
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
-      // Start call when someone joins
-      // If we're the first (no peerConnection yet), we create the offer
-      // Otherwise, we wait for the offer from the other user
-      const shouldCreateOffer = !peerConnectionRef.current
+      // Check if we already have a peer connection (meaning we already started)
+      const hasPeerConnection = peerConnectionRef.current !== null
+      const hasLocalStream = localStreamRef.current !== null
+      
+      console.log('Call state check:', { 
+        hasPeerConnection, 
+        hasLocalStream, 
+        isCallStarted,
+        shouldStart: !hasLocalStream && !isCallStarted
+      })
       
       // Only start if not already started
-      if (!localStreamRef.current && !isCallStarted) {
-        await startCallHandler(shouldCreateOffer)
+      if (!hasLocalStream && !isCallStarted) {
+        // First user to start creates the offer
+        // We'll determine this by checking if we're the first in the room
+        // For now, always create offer when we start first
+        console.log('Starting call as first user, will create offer')
+        await startCallHandler(true)
+      } else if (hasPeerConnection && !hasLocalStream) {
+        // We have peer connection but no stream - something went wrong, restart
+        console.log('Peer connection exists but no stream, restarting...')
+        if (peerConnectionRef.current) {
+          peerConnectionRef.current.close()
+          peerConnectionRef.current = null
+        }
+        isCallStarted = false
+        await startCallHandler(true)
       }
     })
 
     newSocket.on('offer', async (offer) => {
-      console.log('Received offer')
+      console.log('Received offer:', offer)
       // Start call if not started yet (we received offer before starting)
-      if (!localStreamRef.current) {
+      if (!localStreamRef.current && !isCallStarted) {
+        console.log('Starting call after receiving offer')
         await startCallHandler(false) // Don't create offer, we received one
       }
       
+      // Wait a bit to ensure peer connection is ready
+      await new Promise(resolve => setTimeout(resolve, 200))
+      
       if (peerConnectionRef.current) {
-        await peerConnectionRef.current.setRemoteDescription(
-          new RTCSessionDescription(offer)
-        )
-        const answer = await peerConnectionRef.current.createAnswer()
-        await peerConnectionRef.current.setLocalDescription(answer)
-        newSocket.emit('answer', { roomId, answer })
-        console.log('Sent answer')
+        try {
+          console.log('Setting remote description from offer')
+          await peerConnectionRef.current.setRemoteDescription(
+            new RTCSessionDescription(offer)
+          )
+          console.log('Creating answer...')
+          const answer = await peerConnectionRef.current.createAnswer()
+          await peerConnectionRef.current.setLocalDescription(answer)
+          console.log('Sending answer:', answer)
+          newSocket.emit('answer', { roomId, answer })
+          console.log('Answer sent successfully')
+        } catch (error) {
+          console.error('Error handling offer:', error)
+        }
+      } else {
+        console.warn('Received offer but no peer connection yet')
       }
     })
 
     newSocket.on('answer', async (answer) => {
+      console.log('Received answer:', answer)
       if (peerConnectionRef.current) {
-        await peerConnectionRef.current.setRemoteDescription(
-          new RTCSessionDescription(answer)
-        )
+        try {
+          const currentState = peerConnectionRef.current.signalingState
+          console.log('Current signaling state before setting answer:', currentState)
+          
+          if (currentState === 'have-local-offer' || currentState === 'stable') {
+            await peerConnectionRef.current.setRemoteDescription(
+              new RTCSessionDescription(answer)
+            )
+            console.log('Remote description set from answer successfully')
+          } else {
+            console.warn('Cannot set remote description, signaling state:', currentState)
+          }
+        } catch (error) {
+          console.error('Error setting remote description from answer:', error)
+        }
+      } else {
+        console.warn('Received answer but no peer connection')
       }
     })
 
     newSocket.on('ice-candidate', async (candidate) => {
+      console.log('Received ICE candidate:', candidate)
       if (peerConnectionRef.current) {
-        await peerConnectionRef.current.addIceCandidate(
-          new RTCIceCandidate(candidate)
-        )
+        try {
+          if (candidate && candidate.candidate) {
+            await peerConnectionRef.current.addIceCandidate(
+              new RTCIceCandidate(candidate)
+            )
+            console.log('ICE candidate added successfully')
+          } else {
+            console.log('Received null ICE candidate (end of candidates)')
+            await peerConnectionRef.current.addIceCandidate(null)
+          }
+        } catch (error) {
+          console.error('Error adding ICE candidate:', error)
+        }
+      } else {
+        console.warn('Received ICE candidate but no peer connection')
       }
     })
 
@@ -300,11 +411,34 @@ export default function VideoCallModal({ call, onClose }: Props) {
               ref={remoteVideoRef}
               autoPlay
               playsInline
+              muted={false}
               className="w-full h-full object-cover"
+              onLoadedMetadata={() => {
+                console.log('Remote video metadata loaded')
+                if (remoteVideoRef.current) {
+                  remoteVideoRef.current.play().catch(err => {
+                    console.error('Error auto-playing remote video:', err)
+                  })
+                }
+              }}
+              onPlay={() => {
+                console.log('Remote video started playing')
+              }}
+              onError={(e) => {
+                console.error('Remote video error:', e)
+              }}
             />
             <div className="absolute bottom-4 left-4 text-white bg-black bg-opacity-50 px-3 py-1 rounded">
               الطرف الآخر
             </div>
+            {!remoteVideoRef.current?.srcObject && (
+              <div className="absolute inset-0 flex items-center justify-center text-white">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
+                  <p>في انتظار الطرف الآخر...</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

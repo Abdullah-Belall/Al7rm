@@ -8,7 +8,7 @@ curl -X POST "$API_URL" \
   -d '{
     "email": "supporter@test.com",
     "password": "123456",
-    "name": "داعم تجريبي",
+    "name": "Abdullah",
     "specialties": ["prayer", "guidance", "emergency"],
     "maxConcurrentRequests": 5
   }'

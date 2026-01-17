@@ -9,11 +9,11 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { VideoCallsService } from './video-calls.service';
-import { UseGuards } from '@nestjs/common';
+import { FRONTEND_URL } from 'base';
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: FRONTEND_URL,
     credentials: true,
   },
 })
@@ -39,6 +39,7 @@ export class VideoCallsGateway
     @ConnectedSocket() client: Socket,
   ) {
     try {
+      console.log(`[Join Room] User ${data.userId} joining room ${data.roomId}, Client: ${client.id}`);
       const call = await this.videoCallsService.findByRoomId(data.roomId);
 
       // Verify user is part of the call
@@ -46,20 +47,30 @@ export class VideoCallsGateway
         call.customerId !== data.userId &&
         call.supporterId !== data.userId
       ) {
+        console.log(`[Join Room] Unauthorized: User ${data.userId} not part of call`);
         client.emit('error', { message: 'Unauthorized' });
         return;
       }
 
       client.join(data.roomId);
+      console.log(`[Join Room] Client ${client.id} joined room ${data.roomId}`);
+      
+      // Get room info before emitting
+      const room = this.server.sockets.adapter.rooms.get(data.roomId);
+      console.log(`[Join Room] Room ${data.roomId} now has ${room?.size || 0} users`);
+      
+      // Notify other users in the room
       client.to(data.roomId).emit('user-joined', { userId: data.userId });
+      console.log(`[Join Room] Emitted user-joined event for user ${data.userId}`);
 
       // If both users are in the room, start the call
-      const room = this.server.sockets.adapter.rooms.get(data.roomId);
-      if (room && room.size === 2) {
+      if (room && room.size >= 2) {
+        console.log(`[Join Room] Both users in room, starting call`);
         await this.videoCallsService.startCall(call.id);
         this.server.to(data.roomId).emit('call-started', { callId: call.id });
       }
     } catch (error) {
+      console.error(`[Join Room] Error:`, error);
       client.emit('error', { message: error.message });
     }
   }
@@ -87,7 +98,11 @@ export class VideoCallsGateway
     @MessageBody() data: { roomId: string; offer: any },
     @ConnectedSocket() client: Socket,
   ) {
+    console.log(`[Offer] Room: ${data.roomId}, Client: ${client.id}`);
+    const room = this.server.sockets.adapter.rooms.get(data.roomId);
+    console.log(`[Offer] Room size: ${room?.size || 0}`);
     client.to(data.roomId).emit('offer', data.offer);
+    console.log(`[Offer] Sent to room: ${data.roomId}`);
   }
 
   @SubscribeMessage('answer')
@@ -95,7 +110,11 @@ export class VideoCallsGateway
     @MessageBody() data: { roomId: string; answer: any },
     @ConnectedSocket() client: Socket,
   ) {
+    console.log(`[Answer] Room: ${data.roomId}, Client: ${client.id}`);
+    const room = this.server.sockets.adapter.rooms.get(data.roomId);
+    console.log(`[Answer] Room size: ${room?.size || 0}`);
     client.to(data.roomId).emit('answer', data.answer);
+    console.log(`[Answer] Sent to room: ${data.roomId}`);
   }
 
   @SubscribeMessage('ice-candidate')
@@ -103,6 +122,7 @@ export class VideoCallsGateway
     @MessageBody() data: { roomId: string; candidate: any },
     @ConnectedSocket() client: Socket,
   ) {
+    console.log(`[ICE] Room: ${data.roomId}, Client: ${client.id}, Candidate: ${data.candidate?.candidate?.substring(0, 50) || 'null'}`);
     client.to(data.roomId).emit('ice-candidate', data.candidate);
   }
 }

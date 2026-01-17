@@ -8,12 +8,14 @@ import toast from 'react-hot-toast'
 import { Phone, CheckCircle, XCircle, Power } from 'lucide-react'
 import VideoCallModal from '@/components/VideoCallModal'
 import { io, Socket } from 'socket.io-client'
+import { NEXT_PUBLIC_API_URL } from '@/base'
 
 interface SupportRequest {
   id: string
   description: string
   category: string
   status: string
+  supporterId: string
   customer: {
     id: string
     name: string
@@ -38,7 +40,7 @@ export default function SupporterPage() {
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'supporter') return
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001'
+    const wsUrl = NEXT_PUBLIC_API_URL
     const socket = io(`${wsUrl}/support-requests`, {
       transports: ['websocket', 'polling'],
     })

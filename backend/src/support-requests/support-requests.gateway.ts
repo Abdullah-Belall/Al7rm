@@ -4,12 +4,13 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
+import { FRONTEND_URL } from 'base';
 import { Server, Socket } from 'socket.io';
 
 @WebSocketGateway({
   namespace: '/support-requests',
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: FRONTEND_URL,
     credentials: true,
   },
 })
