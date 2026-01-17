@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { VideoCallsService } from './video-calls.service';
-import { FRONTEND_URL } from 'base';
+import { FRONTEND_URL } from 'src/base';
 
 @WebSocketGateway({
   cors: {

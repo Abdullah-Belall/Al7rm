@@ -4,8 +4,8 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { FRONTEND_URL } from 'base';
 import { Server, Socket } from 'socket.io';
+import { FRONTEND_URL } from 'src/base';
 
 @WebSocketGateway({
   namespace: '/support-requests',
