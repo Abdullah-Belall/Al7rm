@@ -9,6 +9,7 @@ interface CreateRequestForm {
   description: string
   category: 'prayer' | 'guidance' | 'emergency' | 'information' | 'other'
   priority: 'low' | 'medium' | 'high' | 'urgent'
+  language: 'ar' | 'en' | 'fr' | 'fa' | 'hi'
 }
 
 interface Props {
@@ -17,16 +18,27 @@ interface Props {
 }
 
 export default function CreateRequestModal({ onClose, onSuccess }: Props) {
+  // Get selected language from localStorage
+  const selectedLanguage = typeof window !== 'undefined' 
+    ? (localStorage.getItem('selectedLanguage') as 'ar' | 'en' | 'fr' | 'fa' | 'hi' | null) || 'ar'
+    : 'ar'
+
   const { register, handleSubmit, formState: { errors } } = useForm<CreateRequestForm>({
     defaultValues: {
       category: 'other',
       priority: 'medium',
+      language: selectedLanguage,
     },
   })
 
   const onSubmit = async (data: CreateRequestForm) => {
     try {
-      await api.post('/support-requests', data)
+      // Ensure language is included
+      const requestData = {
+        ...data,
+        language: selectedLanguage,
+      }
+      await api.post('/support-requests', requestData)
       toast.success('تم إنشاء الطلب بنجاح')
       onSuccess()
     } catch (error: any) {

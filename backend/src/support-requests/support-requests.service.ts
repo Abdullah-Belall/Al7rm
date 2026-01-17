@@ -99,6 +99,11 @@ export class SupportRequestsService {
       excludeIds: request.rejectedBySupporterIds || [],
     };
 
+    // Add language filter if request has a language
+    if (request.language) {
+      filters.language = request.language;
+    }
+
     // Add category-based specialty filter if applicable
     if (request.category) {
       filters.specialties = [request.category];

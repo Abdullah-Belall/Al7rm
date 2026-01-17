@@ -128,6 +128,13 @@ export default function CustomerPage() {
       }
     }
 
+    // Check if language is selected
+    const selectedLanguage = localStorage.getItem('selectedLanguage')
+    if (!selectedLanguage) {
+      router.push('/customer/select-language')
+      return
+    }
+
     checkAuthAndFetch()
   }, [router])
 
@@ -162,6 +169,13 @@ export default function CustomerPage() {
               !activeCall
             ) {
               setActiveCall(updatedRequest)
+            }
+            // If request is completed, redirect to language selection
+            if (updatedRequest && updatedRequest.status === 'completed') {
+              setTimeout(() => {
+                localStorage.removeItem('selectedLanguage')
+                router.push('/customer/select-language')
+              }, 2000)
             }
             return updated
           }

@@ -8,7 +8,7 @@ import {
   JoinColumn,
   OneToOne,
 } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { User, UserLanguage } from '../../users/entities/user.entity';
 import { VideoCall } from '../../video-calls/entities/video-call.entity';
 
 export enum RequestStatus {
@@ -78,6 +78,13 @@ export class SupportRequest {
     default: RequestStatus.PENDING,
   })
   status: RequestStatus;
+
+  @Column({
+    type: 'enum',
+    enum: UserLanguage,
+    nullable: true,
+  })
+  language: UserLanguage;
 
   @Column({ type: 'simple-array', nullable: true })
   rejectedBySupporterIds: string[]; // Track who rejected to avoid re-assigning

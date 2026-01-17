@@ -1,5 +1,6 @@
 import { IsString, IsEnum, IsOptional } from 'class-validator';
 import { RequestCategory, RequestPriority } from '../entities/support-request.entity';
+import { UserLanguage } from '../../users/entities/user.entity';
 
 export class CreateSupportRequestDto {
   @IsOptional()
@@ -12,5 +13,8 @@ export class CreateSupportRequestDto {
   @IsOptional()
   @IsEnum(RequestPriority)
   priority?: RequestPriority;
+
+  @IsEnum(UserLanguage)
+  language: UserLanguage;
 }
 

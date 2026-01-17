@@ -18,7 +18,9 @@ export enum UserRole {
 export enum UserLanguage {
   ARABIC = 'ar',
   ENGLISH = 'en',
-  URDU = 'ur',
+  FRENCH = 'fr',
+  PERSIAN = 'fa',
+  HINDI = 'hi',
 }
 
 @Entity('users')
