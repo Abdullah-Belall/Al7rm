@@ -5,7 +5,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { SupportRequest, RequestStatus } from './entities/support-request.entity';
+import { SupportRequest } from './entities/support-request.entity';
+import { RequestStatus } from '../types/enums';
 import { UsersService } from '../users/users.service';
 import { VideoCallsService } from '../video-calls/video-calls.service';
 import { CreateSupportRequestDto } from './dto/create-support-request.dto';

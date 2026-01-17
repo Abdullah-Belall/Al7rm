@@ -1,5 +1,5 @@
 import { IsOptional, IsString, IsBoolean, IsArray, IsEnum } from 'class-validator';
-import { UserLanguage } from '../entities/user.entity';
+import { UserLanguage } from '../../types/enums';
 
 export class UpdateUserDto {
   @IsOptional()

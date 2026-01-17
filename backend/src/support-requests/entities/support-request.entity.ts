@@ -8,33 +8,9 @@ import {
   JoinColumn,
   OneToOne,
 } from 'typeorm';
-import { User, UserLanguage } from '../../users/entities/user.entity';
+import { User } from '../../users/entities/user.entity';
 import { VideoCall } from '../../video-calls/entities/video-call.entity';
-
-export enum RequestStatus {
-  PENDING = 'pending',
-  ASSIGNED = 'assigned',
-  ACCEPTED = 'accepted',
-  REJECTED = 'rejected',
-  IN_PROGRESS = 'in_progress',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled',
-}
-
-export enum RequestPriority {
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high',
-  URGENT = 'urgent',
-}
-
-export enum RequestCategory {
-  PRAYER = 'prayer',
-  GUIDANCE = 'guidance',
-  EMERGENCY = 'emergency',
-  INFORMATION = 'information',
-  OTHER = 'other',
-}
+import { RequestCategory, RequestPriority, RequestStatus, UserLanguage } from 'src/types/enums';
 
 @Entity('support_requests')
 export class SupportRequest {
@@ -82,7 +58,7 @@ export class SupportRequest {
   @Column({
     type: 'enum',
     enum: UserLanguage,
-    default: UserLanguage.ARABIC
+    nullable: true,
   })
   language: UserLanguage;
 

@@ -12,7 +12,7 @@ import {
 import { SupportRequestsService } from './support-requests.service';
 import { CreateSupportRequestDto } from './dto/create-support-request.dto';
 import { JwtAuthGuard } from '../users/guards/jwt-auth.guard';
-import { RequestStatus } from './entities/support-request.entity';
+import { RequestStatus } from '../types/enums';
 
 @Controller('support-requests')
 @UseGuards(JwtAuthGuard)

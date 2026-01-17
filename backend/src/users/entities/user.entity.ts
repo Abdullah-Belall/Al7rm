@@ -8,20 +8,7 @@ import {
 } from 'typeorm';
 import { SupportRequest } from '../../support-requests/entities/support-request.entity';
 import { VideoCall } from '../../video-calls/entities/video-call.entity';
-
-export enum UserRole {
-  CUSTOMER = 'customer',
-  SUPPORTER = 'supporter',
-  ADMIN = 'admin',
-}
-
-export enum UserLanguage {
-  ARABIC = 'ar',
-  ENGLISH = 'en',
-  FRENCH = 'fr',
-  PERSIAN = 'fa',
-  HINDI = 'hi',
-}
+import { UserLanguage, UserRole } from 'src/types/enums';
 
 @Entity('users')
 export class User {
