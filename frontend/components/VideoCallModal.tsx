@@ -31,6 +31,8 @@ export default function VideoCallModal({ call, onClose }: Props) {
   const socketRef = useRef<Socket | null>(null)
   const pendingIceCandidatesRef = useRef<RTCIceCandidate[]>([])
   const remoteDescriptionSetRef = useRef<boolean>(false)
+  const connectionRetryCountRef = useRef<number>(0)
+  const maxRetries = 2
 
   // Update refs when call changes
   useEffect(() => {
@@ -94,39 +96,62 @@ export default function VideoCallModal({ call, onClose }: Props) {
           iceCandidatePoolSize: 10,
         })
 
+        // Add tracks to peer connection
         stream.getTracks().forEach((track) => {
-          pc.addTrack(track, stream)
+          const sender = pc.addTrack(track, stream)
+          console.log(`Added ${track.kind} track:`, {
+            id: track.id,
+            enabled: track.enabled,
+            readyState: track.readyState,
+            senderId: sender ? 'added' : 'failed'
+          })
+        })
+        
+        console.log('Peer connection initialized with tracks:', {
+          localTracks: pc.getSenders().length,
+          streamTracks: stream.getTracks().length
         })
 
+        // Track remote streams
+        const remoteStreams = new Map<string, MediaStream>()
+        
         pc.ontrack = (event) => {
           console.log('Received remote stream - ontrack event:', {
             streams: event.streams.length,
             track: event.track.kind,
-            id: event.track.id
+            id: event.track.id,
+            enabled: event.track.enabled,
+            readyState: event.track.readyState
           })
+          
+          // Get or create stream for this track
+          let remoteStream: MediaStream
           if (event.streams && event.streams.length > 0) {
-            const remoteStream = event.streams[0]
-            console.log('Setting remote video stream:', {
-              id: remoteStream.id,
-              tracks: remoteStream.getTracks().length
-            })
-            if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = remoteStream
-              // Force play
-              remoteVideoRef.current.play().catch(err => {
-                console.error('Error playing remote video:', err)
-              })
-            }
+            remoteStream = event.streams[0]
           } else if (event.track) {
-            // Fallback: create a new stream from the track
+            // Create a new stream from the track
             console.log('Creating stream from track')
-            const newStream = new MediaStream([event.track])
-            if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = newStream
-              remoteVideoRef.current.play().catch(err => {
-                console.error('Error playing remote video:', err)
-              })
-            }
+            remoteStream = new MediaStream([event.track])
+          } else {
+            console.error('No stream or track in ontrack event')
+            return
+          }
+          
+          // Store stream by ID
+          remoteStreams.set(remoteStream.id, remoteStream)
+          
+          console.log('Setting remote video stream:', {
+            id: remoteStream.id,
+            tracks: remoteStream.getTracks().length,
+            totalRemoteTracks: pc.getReceivers().length
+          })
+          
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = remoteStream
+            // Force play
+            remoteVideoRef.current.play().catch(err => {
+              console.error('Error playing remote video:', err)
+            })
           }
         }
 
@@ -159,32 +184,109 @@ export default function VideoCallModal({ call, onClose }: Props) {
         
         pc.onconnectionstatechange = () => {
           console.log('Peer connection state:', pc.connectionState)
+          console.log('ICE connection state:', pc.iceConnectionState)
+          console.log('Signaling state:', pc.signalingState)
+          
           if (pc.connectionState === 'failed') {
-            console.error('Peer connection failed, attempting to reconnect...')
-            // Try to restart ICE
-            try {
-              pc.restartIce()
-            } catch (error) {
-              console.error('Error restarting ICE on connection failure:', error)
+            console.error('Peer connection failed')
+            console.error('Current states:', {
+              iceConnectionState: pc.iceConnectionState,
+              signalingState: pc.signalingState,
+              connectionState: pc.connectionState,
+              localTracks: pc.getSenders().length,
+              remoteTracks: pc.getReceivers().length
+            })
+            
+            // If ICE is connected but peer connection failed, there's a media negotiation issue
+            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+              console.error('ICE is connected but peer connection failed - media negotiation issue')
+              console.error('This usually means media tracks are not properly negotiated')
+              
+              // Check if we have tracks
+              const senders = pc.getSenders()
+              const receivers = pc.getReceivers()
+              console.error('Track status:', {
+                localSenders: senders.length,
+                remoteReceivers: receivers.length,
+                sendersWithTracks: senders.filter(s => s.track).length,
+                receiversWithTracks: receivers.filter(r => r.track).length
+              })
+              
+              // Try to restart ICE to renegotiate
+              if (connectionRetryCountRef.current < maxRetries) {
+                connectionRetryCountRef.current++
+                console.log(`Attempting to restart ICE (retry ${connectionRetryCountRef.current}/${maxRetries})...`)
+                try {
+                  pc.restartIce()
+                } catch (error) {
+                  console.error('Error restarting ICE on connection failure:', error)
+                }
+              } else {
+                console.error('Max retries reached. Connection cannot be recovered.')
+                toast.error('فشل الاتصال. يرجى إعادة المحاولة.')
+              }
+            } else if (pc.iceConnectionState !== 'failed') {
+              // ICE is not failed yet, try to restart
+              if (connectionRetryCountRef.current < maxRetries) {
+                connectionRetryCountRef.current++
+                console.log(`Attempting to restart ICE (retry ${connectionRetryCountRef.current}/${maxRetries})...`)
+                try {
+                  pc.restartIce()
+                } catch (error) {
+                  console.error('Error restarting ICE on connection failure:', error)
+                }
+              }
+            } else {
+              console.error('ICE also failed, cannot recover. Need to recreate connection.')
             }
           } else if (pc.connectionState === 'connected') {
             console.log('Peer connection established successfully')
+            console.log('Connection details:', {
+              localTracks: pc.getSenders().length,
+              remoteTracks: pc.getReceivers().length,
+              iceConnectionState: pc.iceConnectionState,
+              signalingState: pc.signalingState
+            })
+          } else if (pc.connectionState === 'disconnected') {
+            console.warn('Peer connection disconnected, may reconnect...')
+          } else if (pc.connectionState === 'connecting') {
+            console.log('Peer connection connecting...')
           }
         }
         
         pc.onsignalingstatechange = () => {
-          console.log('Signaling state:', pc.signalingState)
+          console.log('Signaling state changed:', pc.signalingState)
+          if (pc.signalingState === 'stable') {
+            console.log('Signaling is stable, connection should be ready')
+            console.log('Connection state:', pc.connectionState)
+            console.log('ICE connection state:', pc.iceConnectionState)
+            console.log('Tracks:', {
+              localSenders: pc.getSenders().length,
+              remoteReceivers: pc.getReceivers().length
+            })
+          } else if (pc.signalingState === 'closed') {
+            console.error('Signaling state is closed')
+          }
         }
 
         peerConnectionRef.current = pc
         remoteDescriptionSetRef.current = false
         pendingIceCandidatesRef.current = []
+        connectionRetryCountRef.current = 0
 
         // Only create offer if we should (first user or after receiving offer)
         if (shouldCreateOffer) {
           console.log('Creating offer...')
-          const offer = await pc.createOffer()
+          const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+          })
           await pc.setLocalDescription(offer)
+          console.log('Local description set:', {
+            type: offer.type,
+            sdpLength: offer.sdp?.length || 0,
+            signalingState: pc.signalingState
+          })
           if (socketRef.current) {
             socketRef.current.emit('offer', { roomId: roomIdRef.current, offer })
             console.log('Offer sent')
@@ -309,9 +411,16 @@ export default function VideoCallModal({ call, onClose }: Props) {
           }
           
           console.log('Creating answer...')
-          const answer = await peerConnectionRef.current.createAnswer()
+          const answer = await peerConnectionRef.current.createAnswer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+          })
           await peerConnectionRef.current.setLocalDescription(answer)
-          console.log('Sending answer:', answer)
+          console.log('Answer created and local description set:', {
+            type: answer.type,
+            sdpLength: answer.sdp?.length || 0,
+            signalingState: peerConnectionRef.current.signalingState
+          })
           newSocket.emit('answer', { roomId, answer })
           console.log('Answer sent successfully')
         } catch (error) {
