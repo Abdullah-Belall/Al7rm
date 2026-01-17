@@ -33,7 +33,12 @@ export default function VideoCallModal({ call, onClose }: Props) {
   const pendingIceCandidatesRef = useRef<RTCIceCandidate[]>([])
   const remoteDescriptionSetRef = useRef<boolean>(false)
   const connectionRetryCountRef = useRef<number>(0)
-  const maxRetries = 2
+  const maxRetries = 5 // Increased for better reliability on different networks
+  const iceCandidateStatsRef = useRef<{ host: number; srflx: number; relay: number }>({
+    host: 0,
+    srflx: 0,
+    relay: 0,
+  })
 
   // Update refs when call changes
   useEffect(() => {
@@ -54,6 +59,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
     connectionRetryCountRef.current = 0
     pendingIceCandidatesRef.current = []
     remoteDescriptionSetRef.current = false
+    iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
 
     const wsUrl = NEXT_PUBLIC_API_URL
     const newSocket = io(wsUrl, {
@@ -134,59 +140,42 @@ export default function VideoCallModal({ call, onClose }: Props) {
         }
 
         // Configure ICE servers with STUN and TURN for cross-network connectivity
-        // TURN servers are essential when users are on different networks or behind NATs
+        // STUN for NAT discovery (try direct connection first)
+        // TURN for media relay when direct connection fails (different networks)
         const iceServers: RTCIceServer[] = [
-          // STUN servers for NAT discovery (try direct connection first)
+          // STUN server for NAT discovery
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
         ]
 
-        // Add TURN servers for media relay (required for different networks)
-        // Check if custom TURN server is configured via environment variables
-        const customTurnUrls = process.env.NEXT_PUBLIC_TURN_URLS
-        const customTurnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME
-        const customTurnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL
+        // Use custom TURN server from environment variables or default to your VPS
+        const turnUrl = process.env.NEXT_PUBLIC_TURN_URL || 'turn:al7ram.nabdtech.store:3478'
+        const turnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME || 'turnuser'
+        const turnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL || 'turnpassword'
 
-        if (customTurnUrls && customTurnUsername && customTurnCredential) {
-          // Use custom TURN server if configured
-          const urls = customTurnUrls.split(',').map(url => url.trim())
-          iceServers.push({
-            urls,
-            username: customTurnUsername,
-            credential: customTurnCredential,
-          })
-          console.log('Using custom TURN server:', urls[0])
-        } else {
-          // Use public TURN servers as fallback
-          // Note: For production, it's recommended to use your own TURN server
-          iceServers.push(
-            {
-              urls: [
-                'turn:openrelay.metered.ca:80',
-                'turn:openrelay.metered.ca:443',
-                'turn:openrelay.metered.ca:443?transport=tcp',
-              ],
-              username: 'openrelayproject',
-              credential: 'openrelayproject',
-            },
-            {
-              urls: [
-                'turn:relay.metered.ca:80',
-                'turn:relay.metered.ca:443',
-                'turn:relay.metered.ca:443?transport=tcp',
-              ],
-              username: 'openrelayproject',
-              credential: 'openrelayproject',
-            }
-          )
-          console.log('Using public TURN servers (consider configuring your own for production)')
-        }
+        // Add TURN server for media relay (required for different networks)
+        iceServers.push({
+          urls: turnUrl,
+          username: turnUsername,
+          credential: turnCredential,
+        })
+
+        console.log('ICE servers configured:', {
+          stun: 'stun.l.google.com:19302',
+          turn: turnUrl,
+          note: 'TURN will be used only when needed (different networks)',
+        })
 
         const pc = new RTCPeerConnection({
           iceServers,
           iceCandidatePoolSize: 10,
           iceTransportPolicy: 'all', // Try both relay and direct connections
+          bundlePolicy: 'max-bundle', // Bundle tracks in single RTP session for better performance
+        })
+        
+        console.log('RTCPeerConnection configured with:', {
+          iceServersCount: iceServers.length,
+          iceTransportPolicy: 'all',
+          bundlePolicy: 'max-bundle',
         })
 
         // Add tracks to peer connection
@@ -250,45 +239,120 @@ export default function VideoCallModal({ call, onClose }: Props) {
         }
 
         pc.onicecandidate = (event) => {
-          if (event.candidate && socketRef.current) {
-            socketRef.current.emit('ice-candidate', {
-              roomId: roomIdRef.current,
-              candidate: event.candidate,
+          if (event.candidate) {
+            // Log ICE candidate type for debugging (host, srflx, relay)
+            const candidateType = event.candidate.type
+            if (candidateType === 'host') {
+              iceCandidateStatsRef.current.host++
+            } else if (candidateType === 'srflx') {
+              iceCandidateStatsRef.current.srflx++
+            } else if (candidateType === 'relay') {
+              iceCandidateStatsRef.current.relay++
+              console.log('✅ RELAY candidate found - TURN server is working!', {
+                candidate: event.candidate.candidate.substring(0, 100),
+                type: candidateType,
+              })
+            }
+            
+            console.log(`ICE candidate (${candidateType}):`, {
+              type: candidateType,
+              protocol: event.candidate.protocol,
+              address: event.candidate.address,
+              port: event.candidate.port,
+              stats: { ...iceCandidateStatsRef.current },
+            })
+            
+            if (socketRef.current) {
+              socketRef.current.emit('ice-candidate', {
+                roomId: roomIdRef.current,
+                candidate: event.candidate,
+              })
+            }
+          } else {
+            // End of candidates
+            console.log('ICE candidate gathering completed', {
+              finalStats: { ...iceCandidateStatsRef.current },
+              hasRelay: iceCandidateStatsRef.current.relay > 0,
+              message: iceCandidateStatsRef.current.relay > 0
+                ? '✅ TURN relay available - cross-network connection should work'
+                : '⚠️ No relay candidates - may fail on different networks',
             })
           }
         }
 
         pc.oniceconnectionstatechange = () => {
-          console.log('ICE connection state:', pc.iceConnectionState)
-          if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-            console.log('ICE connection established successfully')
-          } else if (pc.iceConnectionState === 'failed') {
-            console.error('ICE connection failed, attempting to restart ICE')
-            // Try to restart ICE gathering
-            try {
-              pc.restartIce()
-              console.log('ICE restart initiated')
-            } catch (error) {
-              console.error('Error restarting ICE:', error)
+          const state = pc.iceConnectionState
+          console.log('ICE connection state changed:', state, {
+            stats: { ...iceCandidateStatsRef.current },
+            hasRelay: iceCandidateStatsRef.current.relay > 0,
+          })
+          
+          if (state === 'connected' || state === 'completed') {
+            console.log('✅ ICE connection established successfully', {
+              connectionType: iceCandidateStatsRef.current.relay > 0 ? 'RELAY (TURN)' : 'DIRECT (STUN)',
+              stats: { ...iceCandidateStatsRef.current },
+            })
+          } else if (state === 'failed') {
+            console.error('❌ ICE connection failed', {
+              retryCount: connectionRetryCountRef.current,
+              maxRetries,
+              stats: { ...iceCandidateStatsRef.current },
+              hasRelay: iceCandidateStatsRef.current.relay > 0,
+              suggestion: iceCandidateStatsRef.current.relay === 0
+                ? 'No relay candidates - TURN servers may be blocked or unavailable'
+                : 'Relay available but connection failed - check network/firewall',
+            })
+            
+            // Try to restart ICE gathering with retry limit
+            if (connectionRetryCountRef.current < maxRetries) {
+              connectionRetryCountRef.current++
+              console.log(`Attempting ICE restart (${connectionRetryCountRef.current}/${maxRetries})...`)
+              try {
+                pc.restartIce()
+                console.log('ICE restart initiated')
+                // Reset stats for new gathering attempt
+                iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
+              } catch (error) {
+                console.error('Error restarting ICE:', error)
+              }
+            } else {
+              console.error(`Max retries (${maxRetries}) reached. Connection cannot be recovered.`)
+              toast.error('فشل الاتصال بعد عدة محاولات. يرجى التحقق من الشبكة وإعادة المحاولة.')
             }
-          } else if (pc.iceConnectionState === 'disconnected') {
-            console.warn('ICE connection disconnected, may reconnect...')
+          } else if (state === 'disconnected') {
+            console.warn('⚠️ ICE connection disconnected, may reconnect...', {
+              stats: { ...iceCandidateStatsRef.current },
+            })
+          } else if (state === 'checking') {
+            console.log('🔄 ICE connection checking...', {
+              stats: { ...iceCandidateStatsRef.current },
+            })
           }
         }
         
         pc.onconnectionstatechange = () => {
-          console.log('Peer connection state:', pc.connectionState)
-          console.log('ICE connection state:', pc.iceConnectionState)
-          console.log('Signaling state:', pc.signalingState)
+          const connectionState = pc.connectionState
+          const iceState = pc.iceConnectionState
+          const signalingState = pc.signalingState
           
-          if (pc.connectionState === 'failed') {
-            console.error('Peer connection failed')
-            console.error('Current states:', {
-              iceConnectionState: pc.iceConnectionState,
-              signalingState: pc.signalingState,
-              connectionState: pc.connectionState,
+          console.log('Peer connection state changed:', {
+            connectionState,
+            iceConnectionState: iceState,
+            signalingState,
+            stats: { ...iceCandidateStatsRef.current },
+            hasRelay: iceCandidateStatsRef.current.relay > 0,
+          })
+          
+          if (connectionState === 'failed') {
+            console.error('❌ Peer connection failed', {
+              iceConnectionState: iceState,
+              signalingState,
+              connectionState,
               localTracks: pc.getSenders().length,
-              remoteTracks: pc.getReceivers().length
+              remoteTracks: pc.getReceivers().length,
+              stats: { ...iceCandidateStatsRef.current },
+              hasRelay: iceCandidateStatsRef.current.relay > 0,
+              retryCount: connectionRetryCountRef.current,
             })
             
             // If ICE is connected but peer connection failed, there's a media negotiation issue
@@ -316,8 +380,11 @@ export default function VideoCallModal({ call, onClose }: Props) {
                   console.error('Error restarting ICE on connection failure:', error)
                 }
               } else {
-                console.error('Max retries reached. Connection cannot be recovered.')
-                toast.error('فشل الاتصال. يرجى إعادة المحاولة.')
+                console.error(`Max retries (${maxRetries}) reached. Connection cannot be recovered.`)
+                const errorMsg = iceCandidateStatsRef.current.relay === 0
+                  ? 'فشل الاتصال - لا توجد خوادم TURN متاحة. يرجى التحقق من الشبكة.'
+                  : 'فشل الاتصال بعد عدة محاولات. يرجى إعادة المحاولة.'
+                toast.error(errorMsg)
               }
             } else if (pc.iceConnectionState !== 'failed') {
               // ICE is not failed yet, try to restart
@@ -333,14 +400,22 @@ export default function VideoCallModal({ call, onClose }: Props) {
             } else {
               console.error('ICE also failed, cannot recover. Need to recreate connection.')
             }
-          } else if (pc.connectionState === 'connected') {
-            console.log('Peer connection established successfully')
-            console.log('Connection details:', {
+          } else if (connectionState === 'connected') {
+            const connectionType = iceCandidateStatsRef.current.relay > 0 ? 'RELAY (TURN)' : 'DIRECT (STUN)'
+            console.log('✅ Peer connection established successfully', {
+              connectionType,
               localTracks: pc.getSenders().length,
               remoteTracks: pc.getReceivers().length,
-              iceConnectionState: pc.iceConnectionState,
-              signalingState: pc.signalingState
+              iceConnectionState: iceState,
+              signalingState,
+              stats: { ...iceCandidateStatsRef.current },
             })
+            
+            if (iceCandidateStatsRef.current.relay > 0) {
+              console.log('✅ Using TURN relay - cross-network connection is working!')
+            } else {
+              console.log('ℹ️ Using direct connection - both users may be on same network')
+            }
           } else if (pc.connectionState === 'disconnected') {
             console.warn('Peer connection disconnected, may reconnect...')
           } else if (pc.connectionState === 'connecting') {
@@ -367,6 +442,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
         remoteDescriptionSetRef.current = false
         pendingIceCandidatesRef.current = []
         connectionRetryCountRef.current = 0
+        iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
 
         // Only create offer if we should (first user or after receiving offer)
         if (shouldCreateOffer) {
