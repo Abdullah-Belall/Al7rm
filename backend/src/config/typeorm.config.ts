@@ -11,7 +11,7 @@ export const typeOrmConfig: DataSourceOptions = {
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_DATABASE || 'al7ram_support',
   entities: [User, SupportRequest, VideoCall],
-  synchronize: process.env.NODE_ENV !== 'production',
+  synchronize: true,
   logging: process.env.NODE_ENV === 'development',
   migrations: ['dist/migrations/*.js'],
   migrationsTableName: 'migrations',
