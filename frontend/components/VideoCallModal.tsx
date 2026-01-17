@@ -143,9 +143,17 @@ export default function VideoCallModal({ call, onClose }: Props) {
         // STUN for NAT discovery (try direct connection first)
         // TURN for media relay when direct connection fails (different networks)
         const iceServers: RTCIceServer[] = [
-          // STUN server for NAT discovery
           { urls: 'stun:stun.l.google.com:19302' },
+          {
+            urls: [
+              'turn:al7ram.nabdtech.store:3478?transport=udp',
+              'turns:al7ram.nabdtech.store:5349?transport=tcp'
+            ],
+            username: 'turnuser',
+            credential: 'turnpassword',
+          },
         ]
+        
 
         // Use custom TURN server from environment variables or default to your VPS
         const turnUrl = process.env.NEXT_PUBLIC_TURN_URL || 'turn:al7ram.nabdtech.store:3478'
@@ -165,13 +173,16 @@ export default function VideoCallModal({ call, onClose }: Props) {
           note: 'TURN will be used only when needed (different networks)',
         })
 
+        // const pc = new RTCPeerConnection({
+        //   iceServers,
+        //   iceCandidatePoolSize: 10,
+        //   iceTransportPolicy: 'all', // Try both relay and direct connections
+        //   bundlePolicy: 'max-bundle', // Bundle tracks in single RTP session for better performance
+        // })
         const pc = new RTCPeerConnection({
           iceServers,
-          iceCandidatePoolSize: 10,
-          iceTransportPolicy: 'all', // Try both relay and direct connections
-          bundlePolicy: 'max-bundle', // Bundle tracks in single RTP session for better performance
+          iceTransportPolicy: 'relay',
         })
-        
         console.log('RTCPeerConnection configured with:', {
           iceServersCount: iceServers.length,
           iceTransportPolicy: 'all',
