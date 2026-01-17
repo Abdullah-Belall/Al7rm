@@ -29,6 +29,8 @@ export default function VideoCallModal({ call, onClose }: Props) {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null)
   const roomIdRef = useRef<string>(call.roomId)
   const socketRef = useRef<Socket | null>(null)
+  const pendingIceCandidatesRef = useRef<RTCIceCandidate[]>([])
+  const remoteDescriptionSetRef = useRef<boolean>(false)
 
   // Update refs when call changes
   useEffect(() => {
@@ -87,7 +89,9 @@ export default function VideoCallModal({ call, onClose }: Props) {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
           ],
+          iceCandidatePoolSize: 10,
         })
 
         stream.getTracks().forEach((track) => {
@@ -140,12 +144,32 @@ export default function VideoCallModal({ call, onClose }: Props) {
           if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
             console.log('ICE connection established successfully')
           } else if (pc.iceConnectionState === 'failed') {
-            console.error('ICE connection failed')
+            console.error('ICE connection failed, attempting to restart ICE')
+            // Try to restart ICE gathering
+            try {
+              pc.restartIce()
+              console.log('ICE restart initiated')
+            } catch (error) {
+              console.error('Error restarting ICE:', error)
+            }
+          } else if (pc.iceConnectionState === 'disconnected') {
+            console.warn('ICE connection disconnected, may reconnect...')
           }
         }
         
         pc.onconnectionstatechange = () => {
           console.log('Peer connection state:', pc.connectionState)
+          if (pc.connectionState === 'failed') {
+            console.error('Peer connection failed, attempting to reconnect...')
+            // Try to restart ICE
+            try {
+              pc.restartIce()
+            } catch (error) {
+              console.error('Error restarting ICE on connection failure:', error)
+            }
+          } else if (pc.connectionState === 'connected') {
+            console.log('Peer connection established successfully')
+          }
         }
         
         pc.onsignalingstatechange = () => {
@@ -153,6 +177,8 @@ export default function VideoCallModal({ call, onClose }: Props) {
         }
 
         peerConnectionRef.current = pc
+        remoteDescriptionSetRef.current = false
+        pendingIceCandidatesRef.current = []
 
         // Only create offer if we should (first user or after receiving offer)
         if (shouldCreateOffer) {
@@ -244,6 +270,13 @@ export default function VideoCallModal({ call, onClose }: Props) {
 
     newSocket.on('offer', async (offer) => {
       console.log('Received offer:', offer)
+      
+      // Validate offer
+      if (!offer || !offer.sdp || !offer.type) {
+        console.error('Invalid offer received:', offer)
+        return
+      }
+      
       // Start call if not started yet (we received offer before starting)
       if (!localStreamRef.current && !isCallStarted) {
         console.log('Starting call after receiving offer')
@@ -259,6 +292,22 @@ export default function VideoCallModal({ call, onClose }: Props) {
           await peerConnectionRef.current.setRemoteDescription(
             new RTCSessionDescription(offer)
           )
+          remoteDescriptionSetRef.current = true
+          console.log('Remote description set, processing pending ICE candidates')
+          
+          // Process any pending ICE candidates
+          while (pendingIceCandidatesRef.current.length > 0) {
+            const candidate = pendingIceCandidatesRef.current.shift()
+            if (candidate) {
+              try {
+                await peerConnectionRef.current.addIceCandidate(candidate)
+                console.log('Processed pending ICE candidate')
+              } catch (error) {
+                console.error('Error adding pending ICE candidate:', error)
+              }
+            }
+          }
+          
           console.log('Creating answer...')
           const answer = await peerConnectionRef.current.createAnswer()
           await peerConnectionRef.current.setLocalDescription(answer)
@@ -275,6 +324,13 @@ export default function VideoCallModal({ call, onClose }: Props) {
 
     newSocket.on('answer', async (answer) => {
       console.log('Received answer:', answer)
+      
+      // Validate answer
+      if (!answer || !answer.sdp || !answer.type) {
+        console.error('Invalid answer received:', answer)
+        return
+      }
+      
       if (peerConnectionRef.current) {
         try {
           const currentState = peerConnectionRef.current.signalingState
@@ -284,7 +340,21 @@ export default function VideoCallModal({ call, onClose }: Props) {
             await peerConnectionRef.current.setRemoteDescription(
               new RTCSessionDescription(answer)
             )
+            remoteDescriptionSetRef.current = true
             console.log('Remote description set from answer successfully')
+            
+            // Process any pending ICE candidates
+            while (pendingIceCandidatesRef.current.length > 0) {
+              const candidate = pendingIceCandidatesRef.current.shift()
+              if (candidate) {
+                try {
+                  await peerConnectionRef.current.addIceCandidate(candidate)
+                  console.log('Processed pending ICE candidate')
+                } catch (error) {
+                  console.error('Error adding pending ICE candidate:', error)
+                }
+              }
+            }
           } else {
             console.warn('Cannot set remote description, signaling state:', currentState)
           }
@@ -300,6 +370,16 @@ export default function VideoCallModal({ call, onClose }: Props) {
       console.log('Received ICE candidate:', candidate)
       if (peerConnectionRef.current) {
         try {
+          // Check if remote description is set
+          if (!remoteDescriptionSetRef.current) {
+            // Queue the candidate if remote description is not set yet
+            if (candidate && candidate.candidate) {
+              console.log('Queueing ICE candidate (remote description not set yet)')
+              pendingIceCandidatesRef.current.push(new RTCIceCandidate(candidate))
+            }
+            return
+          }
+          
           if (candidate && candidate.candidate) {
             await peerConnectionRef.current.addIceCandidate(
               new RTCIceCandidate(candidate)
@@ -311,6 +391,10 @@ export default function VideoCallModal({ call, onClose }: Props) {
           }
         } catch (error) {
           console.error('Error adding ICE candidate:', error)
+          // If error occurs, try to queue it anyway (might be timing issue)
+          if (candidate && candidate.candidate && !remoteDescriptionSetRef.current) {
+            pendingIceCandidatesRef.current.push(new RTCIceCandidate(candidate))
+          }
         }
       } else {
         console.warn('Received ICE candidate but no peer connection')
@@ -326,6 +410,8 @@ export default function VideoCallModal({ call, onClose }: Props) {
         peerConnectionRef.current.close()
         peerConnectionRef.current = null
       }
+      pendingIceCandidatesRef.current = []
+      remoteDescriptionSetRef.current = false
       onClose()
     })
 
@@ -336,11 +422,14 @@ export default function VideoCallModal({ call, onClose }: Props) {
       // Only cleanup if component is actually unmounting
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop())
+        localStreamRef.current = null
       }
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close()
         peerConnectionRef.current = null
       }
+      pendingIceCandidatesRef.current = []
+      remoteDescriptionSetRef.current = false
     }
   }, [call.roomId]) // Only depend on roomId, not the whole call object
 
@@ -353,6 +442,8 @@ export default function VideoCallModal({ call, onClose }: Props) {
       peerConnectionRef.current.close()
       peerConnectionRef.current = null
     }
+    pendingIceCandidatesRef.current = []
+    remoteDescriptionSetRef.current = false
     if (socketRef.current) {
       socketRef.current.emit('leave-room', {
         roomId: roomIdRef.current,
