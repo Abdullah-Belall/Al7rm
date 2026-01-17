@@ -58,8 +58,11 @@ export default function SelectLanguagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+    <div className="relative min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-">
+      <div className='fixed left-0 top-0 w-full h-dvh'>
+        <img src="/kaaba.jpg" alt="help" />
+      </div>
+      <div className="z-[20] bg-white rounded-2xl shadow-xl p-4 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-4">
             <Languages className="w-8 h-8 text-primary-600" />
@@ -73,7 +76,7 @@ export default function SelectLanguagePage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-3">
+          <div className="space-y-3 max-h-[calc(100dvh-300px)] overflow-y-scroll">
             {LANGUAGES.map((lang) => (
               <label
                 key={lang.code}

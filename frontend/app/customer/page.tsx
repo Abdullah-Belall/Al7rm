@@ -10,6 +10,7 @@ import CreateRequestModal from '@/components/CreateRequestModal'
 import VideoCallModal from '@/components/VideoCallModal'
 import { io, Socket } from 'socket.io-client'
 import { NEXT_PUBLIC_API_URL } from '@/base'
+import Image from 'next/image'
 
 interface SupportRequest {
   id: string
@@ -51,7 +52,22 @@ export default function CustomerPage() {
       console.log('fetchRequests: Making request with token', { tokenLength: token.length })
       const response = await api.get('/support-requests')
       console.log('fetchRequests: Success', { count: response.data?.length || 0 })
-      setRequests(response.data || [])
+      
+      // فلترة الطلبات: استبعاد الطلبات المكتملة والملغاة
+      const activeRequests = (response.data || []).filter(
+        (req: SupportRequest) => req.status !== 'completed' && req.status !== 'cancelled'
+      )
+      
+      setRequests(activeRequests)
+      
+      // إذا لم يكن هناك طلبات نشطة، أعد التوجيه لصفحة اختيار اللغة
+      if (activeRequests.length === 0) {
+        setLoading(false)
+        localStorage.removeItem('selectedLanguage')
+        router.push('/customer/select-language')
+        return
+      }
+      
       setLoading(false)
     } catch (error: any) {
       console.error('fetchRequests: Error', {
@@ -156,8 +172,36 @@ export default function CustomerPage() {
     socket.on('support-request-updated', (request: SupportRequest) => {
       // Update the request if it belongs to this customer
       if (request.customerId === user?.id) {
+        // إذا كان الطلب مكتملاً أو ملغى، أزلّه فوراً من القائمة
+        if (request.status === 'completed' || request.status === 'cancelled') {
+          setRequests((prev) => {
+            const filtered = prev.filter((r) => r.id !== request.id)
+            
+            // إذا لم يعد هناك طلبات نشطة، أعد التوجيه لصفحة اختيار اللغة
+            if (filtered.length === 0) {
+              setTimeout(() => {
+                localStorage.removeItem('selectedLanguage')
+                router.push('/customer/select-language')
+              }, 500)
+            }
+            
+            return filtered
+          })
+          
+          // إذا كان هذا الطلب هو المكالمة النشطة، أغلق المكالمة
+          setActiveCall((currentCall) => {
+            if (currentCall && currentCall.id === request.id) {
+              return null
+            }
+            return currentCall
+          })
+          
+          return
+        }
+        
         setRequests((prev) => {
           const exists = prev.find((r) => r.id === request.id)
+          
           if (exists) {
             const updated = prev.map((r) => (r.id === request.id ? request : r))
             // Auto-open video call if status is in_progress and videoCall exists
@@ -165,21 +209,24 @@ export default function CustomerPage() {
             if (
               updatedRequest &&
               updatedRequest.status === 'in_progress' &&
-              updatedRequest.videoCall &&
-              !activeCall
+              updatedRequest.videoCall
             ) {
-              setActiveCall(updatedRequest)
-            }
-            // If request is completed, redirect to language selection
-            if (updatedRequest && updatedRequest.status === 'completed') {
-              setTimeout(() => {
-                localStorage.removeItem('selectedLanguage')
-                router.push('/customer/select-language')
-              }, 2000)
+              setActiveCall((currentCall) => {
+                if (!currentCall) {
+                  return updatedRequest
+                }
+                return currentCall
+              })
             }
             return updated
           }
-          return [request, ...prev]
+          
+          // إضافة طلب جديد فقط إذا لم يكن مكتملاً أو ملغى
+          if (request.status !== 'completed' && request.status !== 'cancelled') {
+            return [request, ...prev]
+          }
+          
+          return prev
         })
       }
     })
@@ -237,8 +284,11 @@ export default function CustomerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen relative">
+      <div className='fixed left-0 top-0 w-full h-dvh z-[-1]'>
+        <Image fill src="/kaaba.jpg" alt="help" />
+      </div>
+      <nav className="bg-white shadow-sm !z-[20]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <h1 className="text-xl font-bold text-primary-700">
@@ -257,9 +307,9 @@ export default function CustomerPage() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 !z-[20]">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">طلبات الدعم</h2>
+          <h2 className="text-2xl font-bold text-white">طلبات الدعم</h2>
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
@@ -273,7 +323,7 @@ export default function CustomerPage() {
           {requests.map((request) => (
             <div
               key={request.id}
-              className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow"
+              className="bg-[#ffffffcc] rounded-lg shadow p-6 hover:shadow-md transition-shadow"
             >
               <div className="flex justify-between items-start">
                 <div className="flex-1">
