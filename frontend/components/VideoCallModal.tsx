@@ -133,13 +133,60 @@ export default function VideoCallModal({ call, onClose }: Props) {
           localVideoRef.current.srcObject = stream
         }
 
+        // Configure ICE servers with STUN and TURN for cross-network connectivity
+        // TURN servers are essential when users are on different networks or behind NATs
+        const iceServers: RTCIceServer[] = [
+          // STUN servers for NAT discovery (try direct connection first)
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+        ]
+
+        // Add TURN servers for media relay (required for different networks)
+        // Check if custom TURN server is configured via environment variables
+        const customTurnUrls = process.env.NEXT_PUBLIC_TURN_URLS
+        const customTurnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME
+        const customTurnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL
+
+        if (customTurnUrls && customTurnUsername && customTurnCredential) {
+          // Use custom TURN server if configured
+          const urls = customTurnUrls.split(',').map(url => url.trim())
+          iceServers.push({
+            urls,
+            username: customTurnUsername,
+            credential: customTurnCredential,
+          })
+          console.log('Using custom TURN server:', urls[0])
+        } else {
+          // Use public TURN servers as fallback
+          // Note: For production, it's recommended to use your own TURN server
+          iceServers.push(
+            {
+              urls: [
+                'turn:openrelay.metered.ca:80',
+                'turn:openrelay.metered.ca:443',
+                'turn:openrelay.metered.ca:443?transport=tcp',
+              ],
+              username: 'openrelayproject',
+              credential: 'openrelayproject',
+            },
+            {
+              urls: [
+                'turn:relay.metered.ca:80',
+                'turn:relay.metered.ca:443',
+                'turn:relay.metered.ca:443?transport=tcp',
+              ],
+              username: 'openrelayproject',
+              credential: 'openrelayproject',
+            }
+          )
+          console.log('Using public TURN servers (consider configuring your own for production)')
+        }
+
         const pc = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-          ],
+          iceServers,
           iceCandidatePoolSize: 10,
+          iceTransportPolicy: 'all', // Try both relay and direct connections
         })
 
         // Add tracks to peer connection
