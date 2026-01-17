@@ -23,6 +23,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [isVideoEnabled, setIsVideoEnabled] = useState(true)
   const [isAudioEnabled, setIsAudioEnabled] = useState(true)
+  const [hasRemoteStream, setHasRemoteStream] = useState(false)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -48,12 +49,57 @@ export default function VideoCallModal({ call, onClose }: Props) {
     const userId = user?.id
     if (!roomId || !userId) return
 
+    // Reset state when call changes
+    setHasRemoteStream(false)
+    connectionRetryCountRef.current = 0
+    pendingIceCandidatesRef.current = []
+    remoteDescriptionSetRef.current = false
+
     const wsUrl = NEXT_PUBLIC_API_URL
     const newSocket = io(wsUrl, {
       transports: ['websocket', 'polling'],
     })
 
     let isCallStarted = false
+    
+    const cleanup = () => {
+      console.log('Cleaning up video call resources...')
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => {
+          track.stop()
+          track.enabled = false
+        })
+        localStreamRef.current = null
+      }
+      if (peerConnectionRef.current) {
+        try {
+          peerConnectionRef.current.close()
+        } catch (error) {
+          console.error('Error closing peer connection:', error)
+        }
+        peerConnectionRef.current = null
+      }
+      if (socketRef.current) {
+        try {
+          socketRef.current.removeAllListeners()
+          socketRef.current.disconnect()
+        } catch (error) {
+          console.error('Error disconnecting socket:', error)
+        }
+        socketRef.current = null
+      }
+      pendingIceCandidatesRef.current = []
+      remoteDescriptionSetRef.current = false
+      connectionRetryCountRef.current = 0
+      setHasRemoteStream(false)
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null
+      }
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null
+      }
+      console.log('Cleanup completed')
+    }
 
     const startCallHandler = async (shouldCreateOffer = false) => {
       // Prevent starting call multiple times
@@ -148,6 +194,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
           
           if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = remoteStream
+            setHasRemoteStream(true)
             // Force play
             remoteVideoRef.current.play().catch(err => {
               console.error('Error playing remote video:', err)
@@ -511,54 +558,68 @@ export default function VideoCallModal({ call, onClose }: Props) {
     })
 
     newSocket.on('call-ended', () => {
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop())
-        localStreamRef.current = null
-      }
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close()
-        peerConnectionRef.current = null
-      }
-      pendingIceCandidatesRef.current = []
-      remoteDescriptionSetRef.current = false
+      cleanup()
       onClose()
     })
 
     setSocket(newSocket)
 
     return () => {
-      newSocket.disconnect()
-      // Only cleanup if component is actually unmounting
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop())
-        localStreamRef.current = null
+      console.log('Component unmounting, cleaning up...')
+      cleanup()
+      try {
+        newSocket.removeAllListeners()
+        newSocket.disconnect()
+      } catch (error) {
+        console.error('Error disconnecting socket on unmount:', error)
       }
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close()
-        peerConnectionRef.current = null
-      }
-      pendingIceCandidatesRef.current = []
-      remoteDescriptionSetRef.current = false
     }
   }, [call.roomId]) // Only depend on roomId, not the whole call object
 
   const handleEndCall = () => {
+    console.log('Ending call...')
+    if (socketRef.current) {
+      try {
+        socketRef.current.emit('leave-room', {
+          roomId: roomIdRef.current,
+          userId: user?.id,
+        })
+        // Clean up socket listeners and disconnect
+        socketRef.current.removeAllListeners()
+        socketRef.current.disconnect()
+      } catch (error) {
+        console.error('Error emitting leave-room or cleaning socket:', error)
+      }
+      socketRef.current = null
+    }
+    
+    // Cleanup resources
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop())
+      localStreamRef.current.getTracks().forEach((track) => {
+        track.stop()
+        track.enabled = false
+      })
       localStreamRef.current = null
     }
     if (peerConnectionRef.current) {
-      peerConnectionRef.current.close()
+      try {
+        peerConnectionRef.current.close()
+      } catch (error) {
+        console.error('Error closing peer connection:', error)
+      }
       peerConnectionRef.current = null
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null
+    }
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null
     }
     pendingIceCandidatesRef.current = []
     remoteDescriptionSetRef.current = false
-    if (socketRef.current) {
-      socketRef.current.emit('leave-room', {
-        roomId: roomIdRef.current,
-        userId: user?.id,
-      })
-    }
+    connectionRetryCountRef.current = 0
+    setHasRemoteStream(false)
+    
     onClose()
   }
 
@@ -631,7 +692,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
             <div className="absolute bottom-4 left-4 text-white bg-black bg-opacity-50 px-3 py-1 rounded">
               الطرف الآخر
             </div>
-            {!remoteVideoRef.current?.srcObject && (
+            {!hasRemoteStream && (
               <div className="absolute inset-0 flex items-center justify-center text-white">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
