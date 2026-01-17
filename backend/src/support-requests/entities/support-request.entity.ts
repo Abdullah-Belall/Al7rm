@@ -82,7 +82,7 @@ export class SupportRequest {
   @Column({
     type: 'enum',
     enum: UserLanguage,
-    nullable: true,
+    default: UserLanguage.ARABIC
   })
   language: UserLanguage;
 
