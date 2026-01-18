@@ -33,6 +33,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
   const pendingIceCandidatesRef = useRef<RTCIceCandidate[]>([])
   const remoteDescriptionSetRef = useRef<boolean>(false)
   const connectionRetryCountRef = useRef<number>(0)
+  const isCallStartedRef = useRef<boolean>(false)
   const maxRetries = 5 // Increased for better reliability on different networks
   const iceCandidateStatsRef = useRef<{ host: number; srflx: number; relay: number }>({
     host: 0,
@@ -59,14 +60,13 @@ export default function VideoCallModal({ call, onClose }: Props) {
     connectionRetryCountRef.current = 0
     pendingIceCandidatesRef.current = []
     remoteDescriptionSetRef.current = false
+    isCallStartedRef.current = false
     iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
 
     const wsUrl = NEXT_PUBLIC_API_URL
     const newSocket = io(wsUrl, {
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'], // WebSocket only for lower latency and better real-time performance
     })
-
-    let isCallStarted = false
     
     const cleanup = () => {
       console.log('Cleaning up video call resources...')
@@ -109,7 +109,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
 
     const startCallHandler = async (shouldCreateOffer = false) => {
       // Prevent starting call multiple times
-      if (isCallStarted || localStreamRef.current) {
+      if (isCallStartedRef.current || localStreamRef.current) {
         console.log('Call already started, skipping...')
         return
       }
@@ -133,7 +133,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
         })
 
         console.log('Media access granted')
-        isCallStarted = true
+        isCallStartedRef.current = true
         localStreamRef.current = stream
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream
@@ -142,47 +142,36 @@ export default function VideoCallModal({ call, onClose }: Props) {
         // Configure ICE servers with STUN and TURN for cross-network connectivity
         // STUN for NAT discovery (try direct connection first)
         // TURN for media relay when direct connection fails (different networks)
-        const iceServers: RTCIceServer[] = [
-          { urls: 'stun:stun.l.google.com:19302' },
-          {
-            urls: [
-              'turn:al7ram.nabdtech.store:3478?transport=udp',
-              'turns:al7ram.nabdtech.store:5349?transport=tcp'
-            ],
-            username: 'turnuser',
-            credential: 'turnpassword',
-          },
-        ]
-        
-
         // Use custom TURN server from environment variables or default to your VPS
         const turnUrl = process.env.NEXT_PUBLIC_TURN_URL || 'turn:al7ram.nabdtech.store:3478'
         const turnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME || 'turnuser'
         const turnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL || 'turnpassword'
 
-        // Add TURN server for media relay (required for different networks)
-        iceServers.push({
-          urls: turnUrl,
-          username: turnUsername,
-          credential: turnCredential,
-        })
+        const iceServers: RTCIceServer[] = [
+          { urls: 'stun:stun.l.google.com:19302' },
+          {
+            urls: [
+              'turn:al7ram.nabdtech.store:3478?transport=udp',
+              'turn:al7ram.nabdtech.store:3478?transport=tcp',
+              'turns:al7ram.nabdtech.store:5349',
+            ],
+            username: turnUsername,
+            credential: turnCredential,
+          },
+        ]
 
         console.log('ICE servers configured:', {
           stun: 'stun.l.google.com:19302',
-          turn: turnUrl,
+          turn: 'al7ram.nabdtech.store:3478',
           note: 'TURN will be used only when needed (different networks)',
         })
 
-        // const pc = new RTCPeerConnection({
-        //   iceServers,
-        //   iceCandidatePoolSize: 10,
-        //   iceTransportPolicy: 'all', // Try both relay and direct connections
-        //   bundlePolicy: 'max-bundle', // Bundle tracks in single RTP session for better performance
-        // })
         const pc = new RTCPeerConnection({
           iceServers,
-          iceTransportPolicy: 'relay',
+          iceTransportPolicy: 'all', // Try both relay and direct connections
+          bundlePolicy: 'max-bundle', // Bundle tracks in single RTP session for better performance
         })
+        
         console.log('RTCPeerConnection configured with:', {
           iceServersCount: iceServers.length,
           iceTransportPolicy: 'all',
@@ -205,9 +194,6 @@ export default function VideoCallModal({ call, onClose }: Props) {
           streamTracks: stream.getTracks().length
         })
 
-        // Track remote streams
-        const remoteStreams = new Map<string, MediaStream>()
-        
         pc.ontrack = (event) => {
           console.log('Received remote stream - ontrack event:', {
             streams: event.streams.length,
@@ -217,21 +203,23 @@ export default function VideoCallModal({ call, onClose }: Props) {
             readyState: event.track.readyState
           })
           
-          // Get or create stream for this track
-          let remoteStream: MediaStream
-          if (event.streams && event.streams.length > 0) {
-            remoteStream = event.streams[0]
-          } else if (event.track) {
-            // Create a new stream from the track
-            console.log('Creating stream from track')
-            remoteStream = new MediaStream([event.track])
-          } else {
-            console.error('No stream or track in ontrack event')
+          if (!remoteVideoRef.current) return
+          
+          // Prevent setting srcObject multiple times (causes AbortError)
+          if (remoteVideoRef.current.srcObject) {
+            console.log('Remote video srcObject already set, skipping...')
             return
           }
           
-          // Store stream by ID
-          remoteStreams.set(remoteStream.id, remoteStream)
+          // Get stream from event
+          const remoteStream = event.streams && event.streams.length > 0 
+            ? event.streams[0]
+            : null
+          
+          if (!remoteStream) {
+            console.error('No stream in ontrack event')
+            return
+          }
           
           console.log('Setting remote video stream:', {
             id: remoteStream.id,
@@ -239,14 +227,11 @@ export default function VideoCallModal({ call, onClose }: Props) {
             totalRemoteTracks: pc.getReceivers().length
           })
           
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = remoteStream
-            setHasRemoteStream(true)
-            // Force play
-            remoteVideoRef.current.play().catch(err => {
-              console.error('Error playing remote video:', err)
-            })
-          }
+          remoteVideoRef.current.srcObject = remoteStream
+          setHasRemoteStream(true)
+          remoteVideoRef.current.play().catch(err => {
+            console.error('Error playing remote video:', err)
+          })
         }
 
         pc.onicecandidate = (event) => {
@@ -366,7 +351,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
               retryCount: connectionRetryCountRef.current,
             })
             
-            // If ICE is connected but peer connection failed, there's a media negotiation issue
+            // Log error details but don't restart ICE here (only in oniceconnectionstatechange)
             if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
               console.error('ICE is connected but peer connection failed - media negotiation issue')
               console.error('This usually means media tracks are not properly negotiated')
@@ -381,35 +366,13 @@ export default function VideoCallModal({ call, onClose }: Props) {
                 receiversWithTracks: receivers.filter(r => r.track).length
               })
               
-              // Try to restart ICE to renegotiate
-              if (connectionRetryCountRef.current < maxRetries) {
-                connectionRetryCountRef.current++
-                console.log(`Attempting to restart ICE (retry ${connectionRetryCountRef.current}/${maxRetries})...`)
-                try {
-                  pc.restartIce()
-                } catch (error) {
-                  console.error('Error restarting ICE on connection failure:', error)
-                }
-              } else {
-                console.error(`Max retries (${maxRetries}) reached. Connection cannot be recovered.`)
-                const errorMsg = iceCandidateStatsRef.current.relay === 0
-                  ? 'فشل الاتصال - لا توجد خوادم TURN متاحة. يرجى التحقق من الشبكة.'
-                  : 'فشل الاتصال بعد عدة محاولات. يرجى إعادة المحاولة.'
-                toast.error(errorMsg)
-              }
-            } else if (pc.iceConnectionState !== 'failed') {
-              // ICE is not failed yet, try to restart
-              if (connectionRetryCountRef.current < maxRetries) {
-                connectionRetryCountRef.current++
-                console.log(`Attempting to restart ICE (retry ${connectionRetryCountRef.current}/${maxRetries})...`)
-                try {
-                  pc.restartIce()
-                } catch (error) {
-                  console.error('Error restarting ICE on connection failure:', error)
-                }
-              }
+              toast.error('فشل الاتصال - مشكلة في التفاوض على الوسائط')
             } else {
               console.error('ICE also failed, cannot recover. Need to recreate connection.')
+              const errorMsg = iceCandidateStatsRef.current.relay === 0
+                ? 'فشل الاتصال - لا توجد خوادم TURN متاحة. يرجى التحقق من الشبكة.'
+                : 'فشل الاتصال بعد عدة محاولات. يرجى إعادة المحاولة.'
+              toast.error(errorMsg)
             }
           } else if (connectionState === 'connected') {
             const connectionType = iceCandidateStatsRef.current.relay > 0 ? 'RELAY (TURN)' : 'DIRECT (STUN)'
@@ -458,10 +421,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
         // Only create offer if we should (first user or after receiving offer)
         if (shouldCreateOffer) {
           console.log('Creating offer...')
-          const offer = await pc.createOffer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: true
-          })
+          const offer = await pc.createOffer()
           await pc.setLocalDescription(offer)
           console.log('Local description set:', {
             type: offer.type,
@@ -475,7 +435,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
         }
       } catch (error: any) {
         console.error('Error starting call:', error)
-        isCallStarted = false
+        isCallStartedRef.current = false
         
         let errorMessage = 'فشل في بدء المكالمة'
         if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
@@ -492,62 +452,24 @@ export default function VideoCallModal({ call, onClose }: Props) {
 
     newSocket.on('connect', () => {
       console.log('VideoCall WebSocket connected')
-      // Update socket ref immediately
       socketRef.current = newSocket
       newSocket.emit('join-room', {
         roomId,
         userId,
       })
       console.log('Emitted join-room:', { roomId, userId })
-      
-      // Fallback: Start call after a delay if user-joined doesn't fire
-      // This handles the case where we're the first user or the other user is already connected
-      setTimeout(async () => {
-        if (!localStreamRef.current && !isCallStarted && newSocket.connected) {
-          console.log('Fallback: Starting call after timeout (no user-joined event)')
-          const room = newSocket.io.engine.transport.name
-          console.log('Transport:', room)
-          // Check if we should start - if we're connected and haven't started, start now
-          await startCallHandler(true)
-        }
-      }, 2000)
     })
 
-    newSocket.on('user-joined', async (data) => {
-      console.log('User joined event received:', data)
-      // Make sure socket ref is set
+    newSocket.on('user-joined', async () => {
+      console.log('User joined event received')
       socketRef.current = newSocket
       
-      // Wait a bit to avoid race condition when both users join at the same time
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Check if we already have a peer connection (meaning we already started)
-      const hasPeerConnection = peerConnectionRef.current !== null
-      const hasLocalStream = localStreamRef.current !== null
-      
-      console.log('Call state check:', { 
-        hasPeerConnection, 
-        hasLocalStream, 
-        isCallStarted,
-        shouldStart: !hasLocalStream && !isCallStarted
-      })
-      
-      // Only start if not already started
-      if (!hasLocalStream && !isCallStarted) {
-        // First user to start creates the offer
-        // We'll determine this by checking if we're the first in the room
-        // For now, always create offer when we start first
+      // Only start if peer connection doesn't exist yet
+      if (!peerConnectionRef.current) {
         console.log('Starting call as first user, will create offer')
         await startCallHandler(true)
-      } else if (hasPeerConnection && !hasLocalStream) {
-        // We have peer connection but no stream - something went wrong, restart
-        console.log('Peer connection exists but no stream, restarting...')
-        if (peerConnectionRef.current) {
-          peerConnectionRef.current.close()
-          peerConnectionRef.current = null
-        }
-        isCallStarted = false
-        await startCallHandler(true)
+      } else {
+        console.log('Peer connection already exists, skipping start')
       }
     })
 
@@ -561,7 +483,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
       }
       
       // Start call if not started yet (we received offer before starting)
-      if (!localStreamRef.current && !isCallStarted) {
+      if (!localStreamRef.current && !isCallStartedRef.current) {
         console.log('Starting call after receiving offer')
         await startCallHandler(false) // Don't create offer, we received one
       }
@@ -592,10 +514,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
           }
           
           console.log('Creating answer...')
-          const answer = await peerConnectionRef.current.createAnswer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: true
-          })
+          const answer = await peerConnectionRef.current.createAnswer()
           await peerConnectionRef.current.setLocalDescription(answer)
           console.log('Answer created and local description set:', {
             type: answer.type,
