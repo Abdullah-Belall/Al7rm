@@ -131,22 +131,18 @@ export default function VideoCallModal({ call, onClose }: Props) {
         const turnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL || 'turnpassword'
 
         const iceServers: RTCIceServer[] = [
-          // Primary STUN server
-          { urls: 'stun:stun.l.google.com:19302' },
-          // Backup STUN servers
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          // TURN servers - CRITICAL for cross-network connectivity
+          // TURN servers - CRITICAL for cross-network connectivity (put first for priority)
           {
             urls: [
-              `turn:91.99.83.210:3478?transport=udp`
-              // `turn:${turnHost}:3478?transport=udp`,
-              // `turn:${turnHost}:3478?transport=tcp`,
-              // `turns:${turnHost}:5349?transport=tcp`,
+              `turn:${turnHost}:3478?transport=udp`,
+              `turn:${turnHost}:3478?transport=tcp`,
+              `turns:${turnHost}:5349?transport=tcp`,
             ],
             username: turnUsername,
             credential: turnCredential,
           },
+          // Fallback public STUN server (used as backup when TURN is not needed)
+          { urls: 'stun:stun.l.google.com:19302' },
         ]
 
         console.log('ICE servers configured:', {
