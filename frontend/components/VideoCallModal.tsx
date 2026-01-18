@@ -34,6 +34,8 @@ export default function VideoCallModal({ call, onClose }: Props) {
   const remoteDescriptionSetRef = useRef<boolean>(false)
   const connectionRetryCountRef = useRef<number>(0)
   const isCallStartedRef = useRef<boolean>(false)
+  const joinedRoomRef = useRef<boolean>(false)
+  const isCallInitializedRef = useRef<boolean>(false)
   const maxRetries = 5 // Increased for better reliability on different networks
   const iceCandidateStatsRef = useRef<{ host: number; srflx: number; relay: number }>({
     host: 0,
@@ -41,9 +43,16 @@ export default function VideoCallModal({ call, onClose }: Props) {
     relay: 0,
   })
 
-  // Update refs when call changes
+  // Store roomId in ref - only update if it's actually a new call
   useEffect(() => {
-    roomIdRef.current = call.roomId
+    // Only update if it's a genuinely new room (different from current)
+    if (roomIdRef.current !== call.roomId) {
+      console.log('New call detected, resetting state')
+      roomIdRef.current = call.roomId
+      // Reset initialization flag for new call
+      isCallInitializedRef.current = false
+      joinedRoomRef.current = false
+    }
   }, [call.roomId])
 
   useEffect(() => {
@@ -51,61 +60,32 @@ export default function VideoCallModal({ call, onClose }: Props) {
   }, [socket])
 
   useEffect(() => {
-    const roomId = call.roomId
+    const roomId = roomIdRef.current // Use ref instead of call.roomId
     const userId = user?.id
     if (!roomId || !userId) return
 
-    // Reset state when call changes
+    // CRITICAL: Prevent re-initialization if call already exists
+    if (isCallInitializedRef.current || peerConnectionRef.current || socketRef.current?.connected) {
+      console.log('⚠️ Call already initialized, skipping re-initialization')
+      return
+    }
+
+    // Mark as initialized immediately to prevent race conditions
+    isCallInitializedRef.current = true
+
+    // Reset state for new call
     setHasRemoteStream(false)
     connectionRetryCountRef.current = 0
     pendingIceCandidatesRef.current = []
     remoteDescriptionSetRef.current = false
     isCallStartedRef.current = false
+    joinedRoomRef.current = false
     iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
 
     const wsUrl = NEXT_PUBLIC_API_URL
     const newSocket = io(wsUrl, {
       transports: ['websocket'], // WebSocket only for lower latency and better real-time performance
     })
-    
-    const cleanup = () => {
-      console.log('Cleaning up video call resources...')
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-        localStreamRef.current = null
-      }
-      if (peerConnectionRef.current) {
-        try {
-          peerConnectionRef.current.close()
-        } catch (error) {
-          console.error('Error closing peer connection:', error)
-        }
-        peerConnectionRef.current = null
-      }
-      if (socketRef.current) {
-        try {
-          socketRef.current.removeAllListeners()
-          socketRef.current.disconnect()
-        } catch (error) {
-          console.error('Error disconnecting socket:', error)
-        }
-        socketRef.current = null
-      }
-      pendingIceCandidatesRef.current = []
-      remoteDescriptionSetRef.current = false
-      connectionRetryCountRef.current = 0
-      setHasRemoteStream(false)
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = null
-      }
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = null
-      }
-      console.log('Cleanup completed')
-    }
 
     const startCallHandler = async (shouldCreateOffer = false) => {
       // Prevent starting call multiple times
@@ -453,11 +433,19 @@ export default function VideoCallModal({ call, onClose }: Props) {
     newSocket.on('connect', () => {
       console.log('VideoCall WebSocket connected')
       socketRef.current = newSocket
+      
+      // Prevent joining room multiple times
+      if (joinedRoomRef.current) {
+        console.log('⚠️ Already joined room, skipping join-room emit')
+        return
+      }
+      
+      joinedRoomRef.current = true
       newSocket.emit('join-room', {
         roomId,
         userId,
       })
-      console.log('Emitted join-room:', { roomId, userId })
+      console.log('✅ Emitted join-room:', { roomId, userId })
     })
 
     newSocket.on('user-joined', async () => {
@@ -633,42 +621,46 @@ export default function VideoCallModal({ call, onClose }: Props) {
     })
 
     newSocket.on('call-ended', () => {
-      cleanup()
-      onClose()
+      console.log('Call ended event received')
+      // Call ended from remote - end the call properly
+      handleEndCall()
     })
 
     setSocket(newSocket)
 
+    // Cleanup only on unmount (component is actually being removed)
+    // Do NOT cleanup resources here - that's handleEndCall's job
     return () => {
-      console.log('Component unmounting, cleaning up...')
-      cleanup()
+      console.log('Component unmounting - cleaning up socket only...')
+      // Only disconnect socket, don't cleanup media/resources
+      // Resources will be cleaned up by handleEndCall if needed
       try {
-        newSocket.removeAllListeners()
-        newSocket.disconnect()
+        if (newSocket.connected) {
+          newSocket.removeAllListeners()
+          newSocket.disconnect()
+        }
       } catch (error) {
         console.error('Error disconnecting socket on unmount:', error)
       }
     }
-  }, [call.roomId]) // Only depend on roomId, not the whole call object
+  }, [call.roomId, user?.id]) // Depend on roomId and userId only
 
   const handleEndCall = () => {
-    console.log('Ending call...')
-    if (socketRef.current) {
+    console.log('🔴 Ending call - cleanup starting...')
+    
+    // Emit leave-room event before cleanup
+    if (socketRef.current && socketRef.current.connected) {
       try {
         socketRef.current.emit('leave-room', {
           roomId: roomIdRef.current,
           userId: user?.id,
         })
-        // Clean up socket listeners and disconnect
-        socketRef.current.removeAllListeners()
-        socketRef.current.disconnect()
       } catch (error) {
-        console.error('Error emitting leave-room or cleaning socket:', error)
+        console.error('Error emitting leave-room:', error)
       }
-      socketRef.current = null
     }
     
-    // Cleanup resources
+    // Cleanup media streams
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
         track.stop()
@@ -676,6 +668,8 @@ export default function VideoCallModal({ call, onClose }: Props) {
       })
       localStreamRef.current = null
     }
+    
+    // Cleanup peer connection
     if (peerConnectionRef.current) {
       try {
         peerConnectionRef.current.close()
@@ -684,17 +678,39 @@ export default function VideoCallModal({ call, onClose }: Props) {
       }
       peerConnectionRef.current = null
     }
+    
+    // Cleanup video elements
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null
     }
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null
     }
+    
+    // Cleanup socket
+    if (socketRef.current) {
+      try {
+        socketRef.current.removeAllListeners()
+        socketRef.current.disconnect()
+      } catch (error) {
+        console.error('Error disconnecting socket:', error)
+      }
+      socketRef.current = null
+    }
+    
+    // Reset all refs
     pendingIceCandidatesRef.current = []
     remoteDescriptionSetRef.current = false
     connectionRetryCountRef.current = 0
+    isCallStartedRef.current = false
+    joinedRoomRef.current = false
+    isCallInitializedRef.current = false
+    iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
     setHasRemoteStream(false)
     
+    console.log('✅ Call cleanup completed')
+    
+    // Close UI modal (this is UI-only, doesn't affect call state)
     onClose()
   }
 
@@ -722,7 +738,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
       <div className="relative w-full h-full max-w-7xl mx-auto p-4">
         <button
-          onClick={onClose}
+          onClick={handleEndCall}
           className="absolute top-4 left-4 text-white hover:text-gray-300 z-10"
         >
           <X size={24} />
