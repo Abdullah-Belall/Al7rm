@@ -123,17 +123,22 @@ export default function VideoCallModal({ call, onClose }: Props) {
         // STUN for NAT discovery (try direct connection first)
         // TURN for media relay when direct connection fails (different networks)
         // Use custom TURN server from environment variables or default to your VPS
-        const turnUrl = process.env.NEXT_PUBLIC_TURN_URL || 'turn:al7ram.nabdtech.store:3478'
+        const turnHost = process.env.NEXT_PUBLIC_TURN_HOST || 'al7ram.nabdtech.store'
         const turnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME || 'turnuser'
         const turnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL || 'turnpassword'
 
         const iceServers: RTCIceServer[] = [
+          // Primary STUN server
           { urls: 'stun:stun.l.google.com:19302' },
+          // Backup STUN servers
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          // TURN servers - CRITICAL for cross-network connectivity
           {
             urls: [
-              'turn:al7ram.nabdtech.store:3478?transport=udp',
-              'turn:al7ram.nabdtech.store:3478?transport=tcp',
-              'turns:al7ram.nabdtech.store:5349',
+              `turn:${turnHost}:3478?transport=udp`,
+              `turn:${turnHost}:3478?transport=tcp`,
+              `turns:${turnHost}:5349?transport=tcp`,
             ],
             username: turnUsername,
             credential: turnCredential,
@@ -141,8 +146,14 @@ export default function VideoCallModal({ call, onClose }: Props) {
         ]
 
         console.log('ICE servers configured:', {
-          stun: 'stun.l.google.com:19302',
-          turn: 'al7ram.nabdtech.store:3478',
+          stun: ['stun.l.google.com:19302', 'stun1.l.google.com:19302', 'stun2.l.google.com:19302'],
+          turn: {
+            host: turnHost,
+            udp: `turn:${turnHost}:3478`,
+            tcp: `turn:${turnHost}:3478`,
+            tls: `turns:${turnHost}:5349`,
+            username: turnUsername,
+          },
           note: 'TURN will be used only when needed (different networks)',
         })
 
