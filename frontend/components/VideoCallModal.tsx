@@ -488,46 +488,52 @@ export default function VideoCallModal({ call, onClose }: Props) {
         await startCallHandler(false) // Don't create offer, we received one
       }
       
-      // Wait a bit to ensure peer connection is ready
-      await new Promise(resolve => setTimeout(resolve, 200))
-      
-      if (peerConnectionRef.current) {
-        try {
-          console.log('Setting remote description from offer')
-          await peerConnectionRef.current.setRemoteDescription(
-            new RTCSessionDescription(offer)
-          )
-          remoteDescriptionSetRef.current = true
-          console.log('Remote description set, processing pending ICE candidates')
-          
-          // Process any pending ICE candidates
+      if (!peerConnectionRef.current) {
+        console.warn('Received offer but no peer connection yet')
+        return
+      }
+
+      const pc = peerConnectionRef.current
+
+      try {
+        // Set remote description first
+        console.log('Setting remote description from offer')
+        await pc.setRemoteDescription(new RTCSessionDescription(offer))
+        remoteDescriptionSetRef.current = true
+        console.log('✅ Remote description set from offer')
+
+        // CRITICAL: Flush all pending ICE candidates immediately
+        const pendingCount = pendingIceCandidatesRef.current.length
+        if (pendingCount > 0) {
+          console.log(`Processing ${pendingCount} pending ICE candidates...`)
           while (pendingIceCandidatesRef.current.length > 0) {
             const candidate = pendingIceCandidatesRef.current.shift()
-            if (candidate) {
+            if (candidate && candidate.candidate) {
               try {
-                await peerConnectionRef.current.addIceCandidate(candidate)
-                console.log('Processed pending ICE candidate')
+                await pc.addIceCandidate(candidate)
+                console.log(`✅ Processed pending ICE candidate: ${candidate.type || 'unknown'}`)
               } catch (error) {
-                console.error('Error adding pending ICE candidate:', error)
+                console.error('❌ Error adding pending ICE candidate:', error)
               }
             }
           }
-          
-          console.log('Creating answer...')
-          const answer = await peerConnectionRef.current.createAnswer()
-          await peerConnectionRef.current.setLocalDescription(answer)
-          console.log('Answer created and local description set:', {
-            type: answer.type,
-            sdpLength: answer.sdp?.length || 0,
-            signalingState: peerConnectionRef.current.signalingState
-          })
-          newSocket.emit('answer', { roomId, answer })
-          console.log('Answer sent successfully')
-        } catch (error) {
-          console.error('Error handling offer:', error)
+          console.log(`✅ All ${pendingCount} pending ICE candidates processed`)
         }
-      } else {
-        console.warn('Received offer but no peer connection yet')
+
+        // Create and send answer
+        console.log('Creating answer...')
+        const answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+        console.log('✅ Answer created and local description set:', {
+          type: answer.type,
+          sdpLength: answer.sdp?.length || 0,
+          signalingState: pc.signalingState
+        })
+        
+        newSocket.emit('answer', { roomId, answer })
+        console.log('✅ Answer sent successfully')
+      } catch (error) {
+        console.error('❌ Error handling offer:', error)
       }
     })
 
@@ -540,73 +546,89 @@ export default function VideoCallModal({ call, onClose }: Props) {
         return
       }
       
-      if (peerConnectionRef.current) {
-        try {
-          const currentState = peerConnectionRef.current.signalingState
-          console.log('Current signaling state before setting answer:', currentState)
-          
-          if (currentState === 'have-local-offer' || currentState === 'stable') {
-            await peerConnectionRef.current.setRemoteDescription(
-              new RTCSessionDescription(answer)
-            )
-            remoteDescriptionSetRef.current = true
-            console.log('Remote description set from answer successfully')
-            
-            // Process any pending ICE candidates
-            while (pendingIceCandidatesRef.current.length > 0) {
-              const candidate = pendingIceCandidatesRef.current.shift()
-              if (candidate) {
-                try {
-                  await peerConnectionRef.current.addIceCandidate(candidate)
-                  console.log('Processed pending ICE candidate')
-                } catch (error) {
-                  console.error('Error adding pending ICE candidate:', error)
-                }
-              }
-            }
-          } else {
-            console.warn('Cannot set remote description, signaling state:', currentState)
-          }
-        } catch (error) {
-          console.error('Error setting remote description from answer:', error)
-        }
-      } else {
+      if (!peerConnectionRef.current) {
         console.warn('Received answer but no peer connection')
+        return
+      }
+
+      const pc = peerConnectionRef.current
+      
+      try {
+        const currentState = pc.signalingState
+        console.log('Current signaling state before setting answer:', currentState)
+        
+        // Only proceed if we're expecting an answer
+        if (currentState !== 'have-local-offer') {
+          console.warn('Cannot set remote description, unexpected signaling state:', currentState)
+          return
+        }
+
+        // Set remote description first
+        await pc.setRemoteDescription(new RTCSessionDescription(answer))
+        remoteDescriptionSetRef.current = true
+        console.log('✅ Remote description set from answer successfully')
+        
+        // CRITICAL: Flush all pending ICE candidates immediately after setRemoteDescription
+        const pendingCount = pendingIceCandidatesRef.current.length
+        console.log(`Processing ${pendingCount} pending ICE candidates...`)
+        
+        while (pendingIceCandidatesRef.current.length > 0) {
+          const candidate = pendingIceCandidatesRef.current.shift()
+          if (candidate && candidate.candidate) {
+            try {
+              await pc.addIceCandidate(candidate)
+              console.log(`✅ Processed pending ICE candidate: ${candidate.type || 'unknown'}`)
+            } catch (error) {
+              console.error('❌ Error adding pending ICE candidate:', error, candidate)
+            }
+          }
+        }
+        
+        if (pendingCount > 0) {
+          console.log(`✅ All ${pendingCount} pending ICE candidates processed`)
+        }
+      } catch (error) {
+        console.error('❌ Error setting remote description from answer:', error)
       }
     })
 
     newSocket.on('ice-candidate', async (candidate) => {
-      console.log('Received ICE candidate:', candidate)
-      if (peerConnectionRef.current) {
-        try {
-          // Check if remote description is set
-          if (!remoteDescriptionSetRef.current) {
-            // Queue the candidate if remote description is not set yet
-            if (candidate && candidate.candidate) {
-              console.log('Queueing ICE candidate (remote description not set yet)')
-              pendingIceCandidatesRef.current.push(new RTCIceCandidate(candidate))
-            }
-            return
-          }
-          
-          if (candidate && candidate.candidate) {
-            await peerConnectionRef.current.addIceCandidate(
-              new RTCIceCandidate(candidate)
-            )
-            console.log('ICE candidate added successfully')
-          } else {
-            console.log('Received null ICE candidate (end of candidates)')
-            await peerConnectionRef.current.addIceCandidate(null)
-          }
-        } catch (error) {
-          console.error('Error adding ICE candidate:', error)
-          // If error occurs, try to queue it anyway (might be timing issue)
-          if (candidate && candidate.candidate && !remoteDescriptionSetRef.current) {
-            pendingIceCandidatesRef.current.push(new RTCIceCandidate(candidate))
-          }
-        }
-      } else {
+      if (!peerConnectionRef.current) {
         console.warn('Received ICE candidate but no peer connection')
+        return
+      }
+
+      const pc = peerConnectionRef.current
+
+      // Handle null candidate (end of candidates)
+      if (!candidate || !candidate.candidate) {
+        try {
+          await pc.addIceCandidate(null)
+          console.log('✅ Received null ICE candidate (end of candidates)')
+        } catch (error) {
+          console.error('Error adding null ICE candidate:', error)
+        }
+        return
+      }
+
+      try {
+        // If remote description is not set yet, queue the candidate
+        if (!remoteDescriptionSetRef.current) {
+          pendingIceCandidatesRef.current.push(new RTCIceCandidate(candidate))
+          console.log(`📦 Queueing ICE candidate (${candidate.type || 'unknown'}) - remote description not set yet`)
+          return
+        }
+
+        // Remote description is set, add candidate immediately
+        await pc.addIceCandidate(new RTCIceCandidate(candidate))
+        console.log(`✅ ICE candidate added: ${candidate.type || 'unknown'}`)
+      } catch (error) {
+        console.error('❌ Error adding ICE candidate:', error)
+        // If error and remote description not set, queue it
+        if (!remoteDescriptionSetRef.current) {
+          pendingIceCandidatesRef.current.push(new RTCIceCandidate(candidate))
+          console.log(`📦 Queued ICE candidate after error (will process later)`)
+        }
       }
     })
 
