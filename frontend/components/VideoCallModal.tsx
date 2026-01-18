@@ -170,7 +170,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
         
         console.log('RTCPeerConnection configured with:', {
           iceServersCount: iceServers.length,
-          iceTransportPolicy: iceRestartAttemptsRef.current >= maxIceRestartAttempts ? 'relay' : 'all',
+          iceTransportPolicy: 'relay',
           bundlePolicy: 'max-bundle',
           iceCandidatePoolSize: 10,
           iceRestartAttempts: iceRestartAttemptsRef.current,
