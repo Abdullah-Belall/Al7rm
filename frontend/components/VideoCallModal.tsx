@@ -163,10 +163,9 @@ export default function VideoCallModal({ call, onClose }: Props) {
         const pc = new RTCPeerConnection({
           iceServers,
           // استخدام 'all' أولاً، لكن سنغيره إلى 'relay' عند الفشل
-          iceTransportPolicy: iceRestartAttemptsRef.current >= maxIceRestartAttempts ? 'relay' : 'all',
-          bundlePolicy: 'max-bundle', // Bundle tracks in single RTP session for better performance
-          // Increase ICE candidate timeout to 30 seconds for better reliability
-          iceCandidatePoolSize: 10, // Pre-gather ICE candidates for faster connection
+          iceTransportPolicy: 'relay', // Use relay only - required for different networks
+          bundlePolicy: 'max-bundle',
+          iceCandidatePoolSize: 10,// Pre-gather ICE candidates for faster connection
         })
         
         console.log('RTCPeerConnection configured with:', {
