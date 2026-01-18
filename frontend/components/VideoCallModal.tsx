@@ -126,7 +126,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
         // STUN for NAT discovery (try direct connection first)
         // TURN for media relay when direct connection fails (different networks)
         // Use custom TURN server from environment variables or default to your VPS
-        const turnHost = process.env.NEXT_PUBLIC_TURN_HOST || 'al7ram.nabdtech.store'
+        const turnHost = '91.99.83.210'
         const turnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME || 'turnuser'
         const turnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL || 'turnpassword'
 
@@ -281,6 +281,21 @@ export default function VideoCallModal({ call, onClose }: Props) {
             hasRelay: iceCandidateStatsRef.current.relay > 0,
             restartAttempts: iceRestartAttemptsRef.current,
           })
+          
+          // إضافة timeout للتحقق من أن ICE connection يبدأ
+          if (state === 'new') {
+            // إذا بقي في 'new' لأكثر من 5 ثواني، هناك مشكلة
+            setTimeout(() => {
+              if (pc.iceConnectionState === 'new') {
+                console.error('⚠️ ICE connection stuck in "new" state - may need restart')
+                // محاولة إعادة تشغيل ICE
+                if (pc.restartIce) {
+                  console.log('🔄 Attempting ICE restart...')
+                  pc.restartIce()
+                }
+              }
+            }, 5000)
+          }
           
           // Check which connection type is actually being used
           if (state === 'connected' || state === 'completed') {
