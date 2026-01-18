@@ -57,12 +57,16 @@ mobility
 # Increase allocation lifetime to prevent timeouts (seconds)
 max-allocate-lifetime=3600
 # Allow longer time for allocation to be used (increase if seeing allocation timeout)
-# Default is 60 seconds, increase to 120 or 180 if allocations timeout frequently
-max-allocate-timeout=120
+# Default is 60 seconds, increase to 180 or 300 if allocations timeout frequently
+max-allocate-timeout=300
 # Keep allocations alive longer
 stale-nonce=600
 # Disable allocation watchdog if it's causing premature closures
 # no-cli-stdin
+# Increase user lifetime to prevent premature session closure
+user-lifetime=3600
+# Increase allocation timeout specifically
+allocation-timeout=300
 
 # Security settings
 no-loopback-peers

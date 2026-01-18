@@ -42,6 +42,8 @@ export default function VideoCallModal({ call, onClose }: Props) {
     srflx: 0,
     relay: 0,
   })
+  const iceRestartAttemptsRef = useRef<number>(0)
+  const maxIceRestartAttempts = 3
 
   // Store roomId in ref - only update if it's actually a new call
   useEffect(() => {
@@ -81,6 +83,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
     isCallStartedRef.current = false
     joinedRoomRef.current = false
     iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
+    iceRestartAttemptsRef.current = 0
 
     const wsUrl = NEXT_PUBLIC_API_URL
     const newSocket = io(wsUrl, {
@@ -159,7 +162,8 @@ export default function VideoCallModal({ call, onClose }: Props) {
 
         const pc = new RTCPeerConnection({
           iceServers,
-          iceTransportPolicy: 'all', // Try both relay and direct connections
+          // استخدام 'all' أولاً، لكن سنغيره إلى 'relay' عند الفشل
+          iceTransportPolicy: iceRestartAttemptsRef.current >= maxIceRestartAttempts ? 'relay' : 'all',
           bundlePolicy: 'max-bundle', // Bundle tracks in single RTP session for better performance
           // Increase ICE candidate timeout to 30 seconds for better reliability
           iceCandidatePoolSize: 10, // Pre-gather ICE candidates for faster connection
@@ -167,9 +171,10 @@ export default function VideoCallModal({ call, onClose }: Props) {
         
         console.log('RTCPeerConnection configured with:', {
           iceServersCount: iceServers.length,
-          iceTransportPolicy: 'all',
+          iceTransportPolicy: iceRestartAttemptsRef.current >= maxIceRestartAttempts ? 'relay' : 'all',
           bundlePolicy: 'max-bundle',
           iceCandidatePoolSize: 10,
+          iceRestartAttempts: iceRestartAttemptsRef.current,
         })
 
         // Add tracks to peer connection
@@ -275,6 +280,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
           console.log('ICE connection state changed:', state, {
             stats: { ...iceCandidateStatsRef.current },
             hasRelay: iceCandidateStatsRef.current.relay > 0,
+            restartAttempts: iceRestartAttemptsRef.current,
           })
           
           // Check which connection type is actually being used
@@ -315,10 +321,122 @@ export default function VideoCallModal({ call, onClose }: Props) {
               maxRetries,
               stats: { ...iceCandidateStatsRef.current },
               hasRelay: iceCandidateStatsRef.current.relay > 0,
+              iceRestartAttempts: iceRestartAttemptsRef.current,
               suggestion: iceCandidateStatsRef.current.relay === 0
                 ? 'No relay candidates - TURN servers may be blocked or unavailable'
                 : 'Relay available but connection failed - may need more time or check network/firewall',
             })
+            
+            // إذا فشل الاتصال ولدينا relay candidates، أجبر استخدام relay
+            if (iceCandidateStatsRef.current.relay > 0 && iceRestartAttemptsRef.current < maxIceRestartAttempts) {
+              iceRestartAttemptsRef.current++
+              console.log(`🔄 Forcing relay-only mode (attempt ${iceRestartAttemptsRef.current}/${maxIceRestartAttempts})...`)
+              
+              // إعادة إنشاء peer connection مع relay-only policy
+              if (localStreamRef.current) {
+                // احفظ الـ stream والـ socket handlers
+                const savedStream = localStreamRef.current
+                const currentSocket = socketRef.current
+                const currentRoomId = roomIdRef.current
+                
+                // احفظ event handlers
+                const savedOntrack = pc.ontrack
+                const savedOnicecandidate = pc.onicecandidate
+                const savedOnconnectionstatechange = pc.onconnectionstatechange
+                const savedOnsignalingstatechange = pc.onsignalingstatechange
+                
+                // أغلق الـ connection القديم
+                try {
+                  pc.close()
+                } catch (error) {
+                  console.error('Error closing old peer connection:', error)
+                }
+                
+                // أنشئ connection جديد مع relay-only
+                const newPc = new RTCPeerConnection({
+                  iceServers,
+                  iceTransportPolicy: 'relay', // Force relay only
+                  bundlePolicy: 'max-bundle',
+                  iceCandidatePoolSize: 10,
+                })
+                
+                // أعد إعداد event handlers
+                newPc.ontrack = savedOntrack
+                newPc.onicecandidate = savedOnicecandidate
+                newPc.onconnectionstatechange = savedOnconnectionstatechange
+                newPc.onsignalingstatechange = savedOnsignalingstatechange
+                
+                // أضف الـ tracks مرة أخرى
+                savedStream.getTracks().forEach((track) => {
+                  newPc.addTrack(track, savedStream)
+                })
+                
+                // أعد تعيين oniceconnectionstatechange مع الإشارة إلى newPc
+                newPc.oniceconnectionstatechange = () => {
+                  const newState = newPc.iceConnectionState
+                  console.log('ICE connection state changed (relay-only):', newState, {
+                    stats: { ...iceCandidateStatsRef.current },
+                    hasRelay: iceCandidateStatsRef.current.relay > 0,
+                    restartAttempts: iceRestartAttemptsRef.current,
+                  })
+                  
+                  if (newState === 'connected' || newState === 'completed') {
+                    newPc.getStats().then(stats => {
+                      let connectionType = 'RELAY (TURN)'
+                      stats.forEach(report => {
+                        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                          const localCandidate = stats.get(report.localCandidateId)
+                          const remoteCandidate = stats.get(report.remoteCandidateId)
+                          if (localCandidate?.candidateType === 'relay' || remoteCandidate?.candidateType === 'relay') {
+                            connectionType = 'RELAY (TURN)'
+                          }
+                        }
+                      })
+                      console.log('✅ ICE connection established successfully (relay-only)', {
+                        connectionType,
+                        stats: { ...iceCandidateStatsRef.current },
+                        note: 'Using TURN relay - cross-network connection is working!',
+                      })
+                    }).catch(err => {
+                      console.log('✅ ICE connection established successfully (relay-only)', {
+                        connectionType: 'RELAY (TURN)',
+                        stats: { ...iceCandidateStatsRef.current },
+                      })
+                    })
+                  } else if (newState === 'failed') {
+                    console.error('❌ ICE connection failed even with relay-only mode', {
+                      stats: { ...iceCandidateStatsRef.current },
+                      restartAttempts: iceRestartAttemptsRef.current,
+                    })
+                    const errorMsg = 'فشل الاتصال حتى مع استخدام TURN relay. قد تكون هناك مشكلة في الشبكة أو خادم TURN.'
+                    toast.error(errorMsg)
+                  }
+                }
+                
+                peerConnectionRef.current = newPc
+                remoteDescriptionSetRef.current = false
+                pendingIceCandidatesRef.current = []
+                iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
+                
+                // أعد إرسال offer/answer
+                setTimeout(async () => {
+                  try {
+                    if (newPc.signalingState === 'stable' || newPc.signalingState === 'have-local-offer') {
+                      const offer = await newPc.createOffer()
+                      await newPc.setLocalDescription(offer)
+                      console.log('✅ Created and sent new offer with relay-only policy')
+                      if (currentSocket) {
+                        currentSocket.emit('offer', { roomId: currentRoomId, offer })
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error creating offer with relay-only:', error)
+                  }
+                }, 1000)
+                
+                return // لا تتابع مع retry logic العادي
+              }
+            }
             
             // Wait a bit before retrying to allow network to stabilize
             const retryDelay = Math.min(1000 * (connectionRetryCountRef.current + 1), 5000)
@@ -769,6 +887,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
     joinedRoomRef.current = false
     isCallInitializedRef.current = false
     iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
+    iceRestartAttemptsRef.current = 0
     setHasRemoteStream(false)
     
     console.log('✅ Call cleanup completed')
