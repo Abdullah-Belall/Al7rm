@@ -640,11 +640,31 @@ export default function VideoCallModal({ call, onClose }: Props) {
       console.log('✅ Emitted join-room:', { roomId, userId })
     })
 
+    newSocket.on('room-ready', async (data: { hasOtherUser: boolean }) => {
+      console.log('Room ready event received:', data)
+      socketRef.current = newSocket
+      
+      // If another user is already in the room, wait for their offer
+      // If we're the first user, wait for user-joined event
+      if (data.hasOtherUser) {
+        console.log('Another user already in room, waiting for offer')
+        // Start call without creating offer (will wait for offer from other user)
+        if (!peerConnectionRef.current) {
+          console.log('Starting call as second user, will wait for offer')
+          await startCallHandler(false)
+        }
+      } else {
+        console.log('First user in room, waiting for second user to join')
+        // Will start when user-joined event is received
+      }
+    })
+
     newSocket.on('user-joined', async () => {
       console.log('User joined event received')
       socketRef.current = newSocket
       
       // Only start if peer connection doesn't exist yet
+      // This means we're the first user and someone just joined
       if (!peerConnectionRef.current) {
         console.log('Starting call as first user, will create offer')
         await startCallHandler(true)

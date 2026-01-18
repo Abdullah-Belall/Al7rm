@@ -55,19 +55,27 @@ export class VideoCallsGateway
       client.join(data.roomId);
       console.log(`[Join Room] Client ${client.id} joined room ${data.roomId}`);
       
-      // Get room info before emitting
+      // Get room info after joining
       const room = this.server.sockets.adapter.rooms.get(data.roomId);
-      console.log(`[Join Room] Room ${data.roomId} now has ${room?.size || 0} users`);
+      const roomSize = room?.size || 0;
+      console.log(`[Join Room] Room ${data.roomId} now has ${roomSize} users`);
       
-      // Notify other users in the room
+      // Notify other users in the room about the new user joining
       client.to(data.roomId).emit('user-joined', { userId: data.userId });
       console.log(`[Join Room] Emitted user-joined event for user ${data.userId}`);
-
-      // If both users are in the room, start the call
-      if (room && room.size >= 2) {
+      
+      // Notify the joining user if there's already someone in the room
+      // This ensures both users can start the call properly
+      if (roomSize >= 2) {
+        console.log(`[Join Room] Another user already in room, notifying joining user`);
+        client.emit('room-ready', { hasOtherUser: true });
+        // If both users are in the room, start the call
         console.log(`[Join Room] Both users in room, starting call`);
         await this.videoCallsService.startCall(call.id);
         this.server.to(data.roomId).emit('call-started', { callId: call.id });
+      } else {
+        console.log(`[Join Room] First user in room, waiting for second user`);
+        client.emit('room-ready', { hasOtherUser: false });
       }
     } catch (error) {
       console.error(`[Join Room] Error:`, error);
