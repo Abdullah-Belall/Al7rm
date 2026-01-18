@@ -139,9 +139,10 @@ export default function VideoCallModal({ call, onClose }: Props) {
           // TURN servers - CRITICAL for cross-network connectivity
           {
             urls: [
-              `turn:${turnHost}:3478?transport=udp`,
-              `turn:${turnHost}:3478?transport=tcp`,
-              `turns:${turnHost}:5349?transport=tcp`,
+              `turn:91.99.83.210:3478?transport=udp`
+              // `turn:${turnHost}:3478?transport=udp`,
+              // `turn:${turnHost}:3478?transport=tcp`,
+              // `turns:${turnHost}:5349?transport=tcp`,
             ],
             username: turnUsername,
             credential: turnCredential,
