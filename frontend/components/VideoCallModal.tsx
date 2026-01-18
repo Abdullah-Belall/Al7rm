@@ -277,10 +277,37 @@ export default function VideoCallModal({ call, onClose }: Props) {
             hasRelay: iceCandidateStatsRef.current.relay > 0,
           })
           
+          // Check which connection type is actually being used
           if (state === 'connected' || state === 'completed') {
-            console.log('✅ ICE connection established successfully', {
-              connectionType: iceCandidateStatsRef.current.relay > 0 ? 'RELAY (TURN)' : 'DIRECT (STUN)',
-              stats: { ...iceCandidateStatsRef.current },
+            // Get stats to see which candidate is actually used
+            pc.getStats().then(stats => {
+              let connectionType = 'UNKNOWN'
+              stats.forEach(report => {
+                if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                  const localCandidate = stats.get(report.localCandidateId)
+                  const remoteCandidate = stats.get(report.remoteCandidateId)
+                  if (localCandidate?.candidateType === 'relay' || remoteCandidate?.candidateType === 'relay') {
+                    connectionType = 'RELAY (TURN)'
+                  } else if (localCandidate?.candidateType === 'srflx' || remoteCandidate?.candidateType === 'srflx') {
+                    connectionType = 'DIRECT (STUN)'
+                  } else {
+                    connectionType = 'DIRECT (HOST)'
+                  }
+                }
+              })
+              console.log('✅ ICE connection established successfully', {
+                connectionType,
+                stats: { ...iceCandidateStatsRef.current },
+                note: connectionType === 'RELAY (TURN)' 
+                  ? 'Using TURN relay - cross-network connection is working!'
+                  : 'Using direct connection - may not work on different networks',
+              })
+            }).catch(err => {
+              console.log('✅ ICE connection established successfully', {
+                connectionType: iceCandidateStatsRef.current.relay > 0 ? 'RELAY (TURN)' : 'DIRECT (STUN)',
+                stats: { ...iceCandidateStatsRef.current },
+                note: 'Could not determine exact connection type from stats',
+              })
             })
           } else if (state === 'failed') {
             console.error('❌ ICE connection failed', {
