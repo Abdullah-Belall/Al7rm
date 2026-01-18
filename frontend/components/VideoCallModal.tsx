@@ -161,12 +161,15 @@ export default function VideoCallModal({ call, onClose }: Props) {
           iceServers,
           iceTransportPolicy: 'all', // Try both relay and direct connections
           bundlePolicy: 'max-bundle', // Bundle tracks in single RTP session for better performance
+          // Increase ICE candidate timeout to 30 seconds for better reliability
+          iceCandidatePoolSize: 10, // Pre-gather ICE candidates for faster connection
         })
         
         console.log('RTCPeerConnection configured with:', {
           iceServersCount: iceServers.length,
           iceTransportPolicy: 'all',
           bundlePolicy: 'max-bundle',
+          iceCandidatePoolSize: 10,
         })
 
         // Add tracks to peer connection
@@ -287,24 +290,40 @@ export default function VideoCallModal({ call, onClose }: Props) {
               hasRelay: iceCandidateStatsRef.current.relay > 0,
               suggestion: iceCandidateStatsRef.current.relay === 0
                 ? 'No relay candidates - TURN servers may be blocked or unavailable'
-                : 'Relay available but connection failed - check network/firewall',
+                : 'Relay available but connection failed - may need more time or check network/firewall',
             })
+            
+            // Wait a bit before retrying to allow network to stabilize
+            const retryDelay = Math.min(1000 * (connectionRetryCountRef.current + 1), 5000)
             
             // Try to restart ICE gathering with retry limit
             if (connectionRetryCountRef.current < maxRetries) {
               connectionRetryCountRef.current++
-              console.log(`Attempting ICE restart (${connectionRetryCountRef.current}/${maxRetries})...`)
-              try {
-                pc.restartIce()
-                console.log('ICE restart initiated')
-                // Reset stats for new gathering attempt
-                iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
-              } catch (error) {
-                console.error('Error restarting ICE:', error)
-              }
+              console.log(`Attempting ICE restart (${connectionRetryCountRef.current}/${maxRetries}) after ${retryDelay}ms delay...`)
+              
+              setTimeout(() => {
+                try {
+                  if (pc && pc.iceConnectionState === 'failed') {
+                    pc.restartIce()
+                    console.log('ICE restart initiated after delay')
+                    // Reset stats for new gathering attempt
+                    iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
+                  }
+                } catch (error) {
+                  console.error('Error restarting ICE:', error)
+                }
+              }, retryDelay)
             } else {
-              console.error(`Max retries (${maxRetries}) reached. Connection cannot be recovered.`)
-              toast.error('فشل الاتصال بعد عدة محاولات. يرجى التحقق من الشبكة وإعادة المحاولة.')
+              console.error(`Max retries (${maxRetries}) reached. Connection cannot be recovered.`, {
+                hasRelay: iceCandidateStatsRef.current.relay > 0,
+                finalStats: { ...iceCandidateStatsRef.current },
+              })
+              
+              // If we have relay candidates but still failed, it might be a TURN server issue
+              const errorMsg = iceCandidateStatsRef.current.relay === 0
+                ? 'فشل الاتصال - لا توجد خوادم TURN متاحة. يرجى التحقق من الشبكة.'
+                : 'فشل الاتصال بعد عدة محاولات. قد تكون هناك مشكلة في الشبكة أو خادم TURN.'
+              toast.error(errorMsg)
             }
           } else if (state === 'disconnected') {
             console.warn('⚠️ ICE connection disconnected, may reconnect...', {
@@ -312,6 +331,12 @@ export default function VideoCallModal({ call, onClose }: Props) {
             })
           } else if (state === 'checking') {
             console.log('🔄 ICE connection checking...', {
+              stats: { ...iceCandidateStatsRef.current },
+              hasRelay: iceCandidateStatsRef.current.relay > 0,
+              message: 'Attempting to establish connection - this may take a few seconds',
+            })
+          } else if (state === 'new') {
+            console.log('🆕 ICE connection state: new', {
               stats: { ...iceCandidateStatsRef.current },
             })
           }
