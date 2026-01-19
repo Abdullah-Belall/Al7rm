@@ -194,29 +194,29 @@ export default function SupporterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen bg-black">
+      <nav className="bg-black/90 backdrop-blur-sm border-b border-gold/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold text-primary-700">
+          <div className="flex flex-col sm:flex-row justify-between gap-4 h-auto sm:h-16 items-start sm:items-center py-4 sm:py-0">
+            <h1 className="text-lg sm:text-xl font-bold text-gold">
               لوحة الداعم - المسجد الحرام
             </h1>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
               <button
                 onClick={toggleAvailability}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all w-full sm:w-auto ${
                   isAvailable
                     ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700'
                 }`}
               >
                 <Power size={20} />
                 {isAvailable ? 'متاح' : 'غير متاح'}
               </button>
-              <span className="text-gray-700">مرحباً، {user?.name}</span>
+              <span className="text-gray-300 text-sm sm:text-base">مرحباً، {user?.name}</span>
               <button
                 onClick={logout}
-                className="text-red-600 hover:text-red-700"
+                className="text-red-400 hover:text-red-300 text-sm sm:text-base transition-colors"
               >
                 تسجيل الخروج
               </button>
@@ -225,41 +225,41 @@ export default function SupporterPage() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">الطلبات المخصصة</h2>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">الطلبات المخصصة</h2>
 
         <div className="grid gap-4">
           {requests.map((request) => (
             <div
               key={request.id}
-              className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow"
+              className="bg-gray-900/80 backdrop-blur-sm border border-gold/20 rounded-lg p-4 sm:p-6 hover:border-gold/40 transition-all"
             >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                <div className="flex-1 w-full">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="text-sm text-gray-500">
+                    <span className="text-xs sm:text-sm text-gray-400">
                       {new Date(request.createdAt).toLocaleDateString('ar-SA')}
                     </span>
                   </div>
-                  <p className="text-gray-700 mb-2">{request.description || 'لا يوجد وصف'}</p>
-                  <p className="text-sm text-gray-500 mb-2">الفئة: {request.category}</p>
-                  <p className="text-sm text-primary-600">
+                  <p className="text-gray-200 mb-2 text-sm sm:text-base">{request.description || 'لا يوجد وصف'}</p>
+                  <p className="text-sm text-gray-400 mb-2">الفئة: {request.category}</p>
+                  <p className="text-sm text-gold">
                     العميل: {request.customer.name}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   {request.status === 'assigned' && (
                     <>
                       <button
                         onClick={() => handleAccept(request.id)}
-                        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                        className="flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all w-full sm:w-auto"
                       >
                         <CheckCircle size={20} />
                         قبول
                       </button>
                       <button
                         onClick={() => handleReject(request.id)}
-                        className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                        className="flex items-center justify-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-all w-full sm:w-auto"
                       >
                         <XCircle size={20} />
                         رفض
@@ -271,7 +271,7 @@ export default function SupporterPage() {
                       {request.videoCall && (
                         <button
                           onClick={() => setActiveCall(request)}
-                          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                          className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all w-full sm:w-auto"
                         >
                           <Phone size={20} />
                           انضم للمكالمة
@@ -279,7 +279,7 @@ export default function SupporterPage() {
                       )}
                       <button
                         onClick={() => handleComplete(request.id)}
-                        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                        className="flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all w-full sm:w-auto"
                       >
                         إكمال
                       </button>
@@ -290,7 +290,7 @@ export default function SupporterPage() {
             </div>
           ))}
           {requests.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-400">
               لا توجد طلبات مخصصة حالياً
             </div>
           )}

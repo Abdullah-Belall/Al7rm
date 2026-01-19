@@ -957,8 +957,8 @@ export default function VideoCallModal({ call, onClose }: Props) {
           <X size={24} />
         </button>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
-          <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full max-h-[calc(100vh-180px)] sm:max-h-[calc(100vh-200px)]">
+          <div className="relative bg-gray-900 rounded-lg overflow-hidden border border-gold/20">
             <video
               ref={localVideoRef}
               autoPlay
@@ -966,12 +966,12 @@ export default function VideoCallModal({ call, onClose }: Props) {
               playsInline
               className="w-full h-full object-cover"
             />
-            <div className="absolute bottom-4 left-4 text-white bg-black bg-opacity-50 px-3 py-1 rounded">
+            <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 text-white bg-black/70 backdrop-blur-sm px-2 sm:px-3 py-1 rounded text-xs sm:text-sm border border-gold/30">
               أنت
             </div>
           </div>
 
-          <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+          <div className="relative bg-gray-900 rounded-lg overflow-hidden border border-gold/20">
             <video
               ref={remoteVideoRef}
               autoPlay
@@ -993,46 +993,46 @@ export default function VideoCallModal({ call, onClose }: Props) {
                 console.error('Remote video error:', e)
               }}
             />
-            <div className="absolute bottom-4 left-4 text-white bg-black bg-opacity-50 px-3 py-1 rounded">
+            <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 text-white bg-black/70 backdrop-blur-sm px-2 sm:px-3 py-1 rounded text-xs sm:text-sm border border-gold/30">
               الطرف الآخر
             </div>
             {!hasRemoteStream && (
-              <div className="absolute inset-0 flex items-center justify-center text-white">
+              <div className="absolute inset-0 flex items-center justify-center text-white bg-black/50">
                 <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
-                  <p>في انتظار الطرف الآخر...</p>
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold mx-auto mb-4"></div>
+                  <p className="text-sm sm:text-base">في انتظار الطرف الآخر...</p>
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-4">
+        <div className="absolute bottom-4 sm:bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3 sm:gap-4 flex-wrap justify-center">
           <button
             onClick={toggleVideo}
-            className={`p-4 rounded-full ${
+            className={`p-3 sm:p-4 rounded-full transition-all ${
               isVideoEnabled
-                ? 'bg-gray-700 text-white'
-                : 'bg-red-600 text-white'
-            } hover:bg-opacity-80 transition-colors`}
+                ? 'bg-gray-700 text-white hover:bg-gray-600'
+                : 'bg-red-600 text-white hover:bg-red-700'
+            }`}
           >
-            {isVideoEnabled ? <Video size={24} /> : <VideoOff size={24} />}
+            {isVideoEnabled ? <Video size={20} className="sm:w-6 sm:h-6" /> : <VideoOff size={20} className="sm:w-6 sm:h-6" />}
           </button>
           <button
             onClick={toggleAudio}
-            className={`p-4 rounded-full ${
+            className={`p-3 sm:p-4 rounded-full transition-all ${
               isAudioEnabled
-                ? 'bg-gray-700 text-white'
-                : 'bg-red-600 text-white'
-            } hover:bg-opacity-80 transition-colors`}
+                ? 'bg-gray-700 text-white hover:bg-gray-600'
+                : 'bg-red-600 text-white hover:bg-red-700'
+            }`}
           >
-            {isAudioEnabled ? <Mic size={24} /> : <MicOff size={24} />}
+            {isAudioEnabled ? <Mic size={20} className="sm:w-6 sm:h-6" /> : <MicOff size={20} className="sm:w-6 sm:h-6" />}
           </button>
           <button
             onClick={handleEndCall}
-            className="p-4 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"
+            className="p-3 sm:p-4 rounded-full bg-red-600 text-white hover:bg-red-700 transition-all"
           >
-            <PhoneOff size={24} />
+            <PhoneOff size={20} className="sm:w-6 sm:h-6" />
           </button>
         </div>
       </div>

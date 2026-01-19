@@ -246,19 +246,19 @@ export default function CustomerPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-gold/20 text-gold border border-gold/30'
       case 'assigned':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-blue-900/50 text-blue-300 border border-blue-500/30'
       case 'accepted':
       case 'in_progress':
-        return 'bg-green-100 text-green-800'
+        return 'bg-green-900/50 text-green-300 border border-green-500/30'
       case 'completed':
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-gray-800/50 text-gray-300 border border-gray-600/30'
       case 'rejected':
       case 'cancelled':
-        return 'bg-red-100 text-red-800'
+        return 'bg-red-900/50 text-red-300 border border-red-500/30'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-gray-800/50 text-gray-300 border border-gray-600/30'
     }
   }
 
@@ -277,28 +277,28 @@ export default function CustomerPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen relative">
-      <div className='fixed left-0 top-0 w-full h-dvh z-[-1]'>
-        <Image fill src="/kaaba.jpg" alt="help" />
+    <div className="min-h-screen relative bg-black">
+      <div className='fixed left-0 top-0 w-full h-dvh z-[-1] opacity-30'>
+        <Image fill src="/kaaba.jpg" alt="help" priority unoptimized />
       </div>
-      <nav className="bg-white shadow-sm !z-[20]">
+      <nav className="bg-black/90 backdrop-blur-sm border-b border-gold/20 !z-[20]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <h1 className="text-xl font-bold text-primary-700">
+          <div className="flex flex-col sm:flex-row justify-between gap-4 h-auto sm:h-16 items-start sm:items-center py-4 sm:py-0">
+            <h1 className="text-lg sm:text-xl font-bold text-gold">
               نظام الدعم - المسجد الحرام
             </h1>
-            <div className="flex items-center gap-4">
-              <span className="text-gray-700">مرحباً، {user?.name}</span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
+              <span className="text-gray-300 text-sm sm:text-base">مرحباً، {user?.name}</span>
               <button
                 onClick={logout}
-                className="text-red-600 hover:text-red-700"
+                className="text-red-400 hover:text-red-300 text-sm sm:text-base transition-colors"
               >
                 تسجيل الخروج
               </button>
@@ -307,12 +307,12 @@ export default function CustomerPage() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 !z-[20]">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white">طلبات الدعم</h2>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 !z-[20]">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-white">طلبات الدعم</h2>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
+            className="flex items-center justify-center gap-2 bg-gold text-black px-4 py-2 rounded-lg hover:bg-gold-600 transition-all w-full sm:w-auto"
           >
             <Plus size={20} />
             طلب دعم جديد
@@ -323,26 +323,26 @@ export default function CustomerPage() {
           {requests.map((request) => (
             <div
               key={request.id}
-              className="bg-[#ffffffcc] rounded-lg shadow p-6 hover:shadow-md transition-shadow"
+              className="bg-gray-900/80 backdrop-blur-sm border border-gold/20 rounded-lg p-4 sm:p-6 hover:border-gold/40 transition-all"
             >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                <div className="flex-1 w-full">
+                  <div className="flex flex-wrap items-center gap-3 mb-2">
                     <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
+                      className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${getStatusColor(
                         request.status
                       )}`}
                     >
                       {getStatusText(request.status)}
                     </span>
-                    <span className="text-sm text-gray-500">
+                    <span className="text-xs sm:text-sm text-gray-400">
                       {new Date(request.createdAt).toLocaleDateString('ar-SA')}
                     </span>
                   </div>
-                  <p className="text-gray-700 mb-2">{request.description || 'لا يوجد وصف'}</p>
-                  <p className="text-sm text-gray-500">الفئة: {request.category}</p>
+                  <p className="text-gray-200 mb-2 text-sm sm:text-base">{request.description || 'لا يوجد وصف'}</p>
+                  <p className="text-sm text-gray-400">الفئة: {request.category}</p>
                   {request.supporter && (
-                    <p className="text-sm text-primary-600 mt-2">
+                    <p className="text-sm text-gold mt-2">
                       الداعم: {request.supporter.name}
                     </p>
                   )}
@@ -352,7 +352,7 @@ export default function CustomerPage() {
                     request.videoCall.status === 'initiated') && (
                     <button
                       onClick={() => setActiveCall(request)}
-                      className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                      className="flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all w-full sm:w-auto"
                     >
                       <Phone size={20} />
                       انضم للمكالمة
@@ -362,7 +362,7 @@ export default function CustomerPage() {
             </div>
           ))}
           {requests.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-400">
               لا توجد طلبات دعم حالياً
             </div>
           )}

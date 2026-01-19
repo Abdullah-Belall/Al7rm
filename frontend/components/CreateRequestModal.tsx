@@ -47,34 +47,35 @@ export default function CreateRequestModal({ onClose, onSuccess }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-gold/30 rounded-lg p-6 w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">طلب دعم جديد</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+          <h2 className="text-xl font-bold text-white">طلب دعم جديد</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
             <X size={24} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               الوصف
             </label>
             <textarea
               {...register('description')}
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-gold focus:border-gold transition-all"
+              placeholder="أدخل وصف الطلب..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               الفئة
             </label>
             <select
               {...register('category', { required: true })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-gold focus:border-gold transition-all"
             >
               <option value="prayer">صلاة</option>
               <option value="guidance">إرشاد</option>
@@ -85,12 +86,12 @@ export default function CreateRequestModal({ onClose, onSuccess }: Props) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               الأولوية
             </label>
             <select
               {...register('priority', { required: true })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-gold focus:border-gold transition-all"
             >
               <option value="low">منخفضة</option>
               <option value="medium">متوسطة</option>
@@ -99,17 +100,17 @@ export default function CreateRequestModal({ onClose, onSuccess }: Props) {
             </select>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+              className="flex-1 bg-gray-800 text-gray-300 py-2 rounded-lg hover:bg-gray-700 border border-gray-700 transition-all"
             >
               إلغاء
             </button>
             <button
               type="submit"
-              className="flex-1 bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 transition-colors"
+              className="flex-1 bg-gold text-black py-2 rounded-lg hover:bg-gold-600 transition-all"
             >
               إنشاء طلب
             </button>

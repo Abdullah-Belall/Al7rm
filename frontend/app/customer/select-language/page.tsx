@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { Languages } from 'lucide-react'
+import Image from 'next/image'
 
 const LANGUAGES = [
   { code: 'ar', name: 'العربية', nativeName: 'العربية' },
@@ -58,32 +59,39 @@ export default function SelectLanguagePage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-">
-      <div className='fixed left-0 top-0 w-full h-dvh'>
-        <img src="/kaaba.jpg" alt="help" />
+    <div className="relative min-h-screen bg-black flex items-center justify-center p-4">
+      <div className='fixed left-0 top-0 w-full h-dvh opacity-30'>
+        <Image 
+          src="/kaaba.jpg" 
+          alt="help" 
+          fill
+          className="object-cover"
+          priority
+          unoptimized
+        />
       </div>
-      <div className="z-[20] bg-white rounded-2xl shadow-xl p-4 w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-100 rounded-full mb-4">
-            <Languages className="w-8 h-8 text-primary-600" />
+      <div className="z-[20] bg-gray-900/95 backdrop-blur-sm border border-gold/30 rounded-2xl p-4 sm:p-6 w-full max-w-md">
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gold/20 rounded-full mb-4 border border-gold/30">
+            <Languages className="w-8 h-8 text-gold" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-white mb-2">
             اختر اللغة
           </h1>
-          <p className="text-gray-600">
+          <p className="text-sm sm:text-base text-gray-300">
             يرجى اختيار اللغة التي تفضل التواصل بها
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-3 max-h-[calc(100dvh-300px)] overflow-y-scroll">
+          <div className="space-y-3 max-h-[calc(100dvh-300px)] overflow-y-scroll pr-2 custom-scrollbar">
             {LANGUAGES.map((lang) => (
               <label
                 key={lang.code}
-                className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                className={`flex items-center p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all ${
                   selectedLanguage === lang.code
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50'
+                    ? 'border-gold bg-gold/20'
+                    : 'border-gray-700 hover:border-gold/50 hover:bg-gray-800/50'
                 }`}
               >
                 <input
@@ -92,13 +100,13 @@ export default function SelectLanguagePage() {
                   value={lang.code}
                   checked={selectedLanguage === lang.code}
                   onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="w-5 h-5 text-primary-600 focus:ring-primary-500 focus:ring-2"
+                  className="w-5 h-5 text-gold bg-gray-800 border-gray-700 focus:ring-gold focus:ring-2"
                 />
                 <div className="ml-3 flex-1">
-                  <div className="text-lg font-semibold text-gray-900">
+                  <div className="text-base sm:text-lg font-semibold text-white">
                     {lang.nativeName}
                   </div>
-                  <div className="text-sm text-gray-500">{lang.name}</div>
+                  <div className="text-xs sm:text-sm text-gray-400">{lang.name}</div>
                 </div>
               </label>
             ))}
@@ -107,7 +115,7 @@ export default function SelectLanguagePage() {
           <button
             type="submit"
             disabled={!selectedLanguage || loading}
-            className="w-full bg-primary-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-primary-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+            className="w-full bg-gold text-black py-3 px-4 rounded-lg font-semibold hover:bg-gold-600 transition-all disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed"
           >
             {loading ? 'جاري التوجيه...' : 'متابعة'}
           </button>
