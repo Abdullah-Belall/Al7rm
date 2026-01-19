@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import toast from 'react-hot-toast'
-import { Plus, Phone, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { Plus, Phone } from 'lucide-react'
 import CreateRequestModal from '@/components/CreateRequestModal'
 import VideoCallModal from '@/components/VideoCallModal'
 import { io, Socket } from 'socket.io-client'
 import { NEXT_PUBLIC_API_URL } from '@/base'
 import Image from 'next/image'
+import kaaba from '@/public/kaaba.jpg'
 
 interface SupportRequest {
   id: string
@@ -286,7 +287,7 @@ export default function CustomerPage() {
   return (
     <div className="min-h-screen relative bg-black">
       <div className='fixed left-0 top-0 w-full h-dvh z-[-1] opacity-30'>
-        <Image fill src="/kaaba.jpg" alt="help" priority unoptimized />
+        <Image fill src={kaaba} alt="help" priority unoptimized />
       </div>
       <nav className="bg-black/90 backdrop-blur-sm border-b border-gold/20 !z-[20]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

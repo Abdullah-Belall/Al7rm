@@ -1,5 +1,6 @@
 import Image from "next/image";
 import React from "react";
+import shape from '@/public/images/shape/grid-01.svg'
 
 export default function GridShape() {
   return (
@@ -8,7 +9,7 @@ export default function GridShape() {
         <Image
           width={540}
           height={254}
-          src="/images/shape/grid-01.svg"
+          src={shape}
           alt="grid"
           unoptimized
           priority
@@ -18,7 +19,7 @@ export default function GridShape() {
         <Image
           width={540}
           height={254}
-          src="/images/shape/grid-01.svg"
+          src={shape}
           alt="grid"
           unoptimized
           priority

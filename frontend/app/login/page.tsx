@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import { Eye, EyeOff } from 'lucide-react'
 import GridShape from '@/components/GridShape'
 import Image from 'next/image'
+import logo from '@/public/images/logo/LOGUP.png'
 
 interface LoginForm {
   email: string
@@ -156,7 +157,7 @@ export default function LoginPage() {
             <GridShape />
             <div className="flex flex-col items-center max-w-xs">
               <h1 className="font-[600] text-3xl flex items-center gap-2 text-gold mb-3">
-                <Image width={35} height={35} src={'/images/logo/LOGUP.png'} alt="t" unoptimized priority /> POWER SOFT
+                <Image width={35} height={35} src={logo} alt="t" unoptimized priority /> POWER SOFT
               </h1>
               <p className="text-center text-gray-300">
                 Continuous support... and communication without limits.

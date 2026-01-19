@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { Languages } from 'lucide-react'
 import Image from 'next/image'
+import kaaba from '@/public/kaaba.jpg'
 
 const LANGUAGES = [
   { code: 'ar', name: 'العربية', nativeName: 'العربية' },
@@ -62,7 +63,7 @@ export default function SelectLanguagePage() {
     <div className="relative min-h-screen bg-black flex items-center justify-center p-4">
       <div className='fixed left-0 top-0 w-full h-dvh opacity-30'>
         <Image 
-          src="/kaaba.jpg" 
+          src={kaaba}
           alt="help" 
           fill
           className="object-cover"

@@ -213,8 +213,6 @@ export class SupportRequestsService {
       throw new BadRequestException('Request is not in progress');
     }
 
-    request.status = RequestStatus.COMPLETED;
-
     // Decrement supporter's request count
     if (request.supporterId) {
       await this.usersService.decrementRequestCount(request.supporterId);
@@ -225,8 +223,12 @@ export class SupportRequestsService {
       await this.videoCallsService.endCall(request.videoCall.id);
     }
 
-    await this.supportRequestsRepository.save(request);
+    // Use update to ensure status is correctly set in database
+    await this.supportRequestsRepository.update(requestId, {
+      status: RequestStatus.COMPLETED,
+    });
 
+    // Reload the entity to ensure we have the latest status
     const updatedRequest = await this.findOne(requestId);
     
     // Notify about completion
