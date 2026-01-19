@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import toast from 'react-hot-toast'
-import { Plus, Phone, Globe, Languages } from 'lucide-react'
+import { Phone } from 'lucide-react'
 import CreateRequestModal from '@/components/CreateRequestModal'
 import VideoCallModal from '@/components/VideoCallModal'
 import RatingModal from '@/components/RatingModal'
@@ -38,7 +38,7 @@ interface SupportRequest {
 
 export default function CustomerPage() {
   const router = useRouter()
-  const { user, isAuthenticated, logout } = useAuthStore()
+  const { user, isAuthenticated } = useAuthStore()
   const [requests, setRequests] = useState<SupportRequest[]>([])
   const [showCreateModal, setShowCreateModal] = useState(true)
   const [activeCall, setActiveCall] = useState<SupportRequest | null>(null)
@@ -47,7 +47,7 @@ export default function CustomerPage() {
   const [ratedRequestIds, setRatedRequestIds] = useState<Set<string>>(new Set())
   const socketRef = useRef<Socket | null>(null)
   const supportRequestsSocketRef = useRef<Socket | null>(null)
-  
+
   const fetchRequests = async () => {
     try {
       const token = localStorage.getItem('token')
@@ -63,7 +63,7 @@ export default function CustomerPage() {
       
       // فلترة الطلبات: استبعاد الطلبات المكتملة والملغاة
       const activeRequests = (response.data || []).filter(
-        (req: SupportRequest) => req.status !== 'completed' && req.status !== 'cancelled'
+        (req: SupportRequest) => req.status !== 'completed' && req.status !== 'rejected'
       )
       
       // إضافة الطلبات المكتملة التي لديها تقييمات إلى ratedRequestIds
@@ -190,10 +190,9 @@ export default function CustomerPage() {
       // Update the request if it belongs to this customer
       if (request.customerId === user?.id) {
         // إذا كان الطلب مكتملاً أو ملغى، أزلّه فوراً من القائمة
-        if (request.status === 'completed' || request.status === 'cancelled') {
+        if (request.status === 'completed' || request.status === 'cancelled'|| request.status === 'rejected') {
           setRequests((prev) => {
             const filtered = prev.filter((r) => r.id !== request.id)
-            
             return filtered
           })
           
