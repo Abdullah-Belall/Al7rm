@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import toast from 'react-hot-toast'
-import { Plus, Phone } from 'lucide-react'
+import { Plus, Phone, Globe } from 'lucide-react'
 import CreateRequestModal from '@/components/CreateRequestModal'
 import VideoCallModal from '@/components/VideoCallModal'
 import { io, Socket } from 'socket.io-client'
@@ -88,16 +88,6 @@ export default function CustomerPage() {
       toast.error('فشل في تحميل الطلبات')
     }
   }
-
-  useEffect(() => {
-    if(debounce) clearTimeout(debounce)
-    if (requests.length === 0) {
-      setDebounce(setTimeout(() => {
-        localStorage.removeItem('selectedLanguage')
-        router.push('/customer/select-language')
-      }, 30000))
-    }
-  }, [requests])
 
   useEffect(() => {
     // تحقق من المصادقة بعد تحميل البيانات من localStorage
@@ -293,6 +283,13 @@ export default function CustomerPage() {
             </h1>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
               <span className="text-gray-300 text-sm sm:text-base">مرحباً، {user?.name}</span>
+              <button
+                onClick={() => router.push('/customer/select-language')}
+                className="flex items-center gap-2 text-gold hover:text-gold-300 text-sm sm:text-base transition-colors"
+              >
+                <Globe size={18} />
+                تغيير اللغة
+              </button>
               <button
                 onClick={logout}
                 className="text-red-400 hover:text-red-300 text-sm sm:text-base transition-colors"
