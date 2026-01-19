@@ -182,14 +182,6 @@ export default function CustomerPage() {
           setRequests((prev) => {
             const filtered = prev.filter((r) => r.id !== request.id)
             
-            // إذا لم يعد هناك طلبات نشطة، أعد التوجيه لصفحة اختيار اللغة
-            if (filtered.length === 0) {
-              setTimeout(() => {
-                localStorage.removeItem('selectedLanguage')
-                router.push('/customer/select-language')
-              }, 500)
-            }
-            
             return filtered
           })
           
