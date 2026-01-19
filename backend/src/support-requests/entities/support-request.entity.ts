@@ -74,6 +74,12 @@ export class SupportRequest {
   @Column({ type: 'int', default: 0 })
   rejectionCount: number;
 
+  @Column({ type: 'int', nullable: true })
+  staffRating: number; // Rating for supporter (1-5)
+
+  @Column({ type: 'int', nullable: true })
+  serviceRating: number; // Rating for service (1-5)
+
   @OneToOne(() => VideoCall, (call) => call.supportRequest, { nullable: true })
   videoCall: VideoCall;
 

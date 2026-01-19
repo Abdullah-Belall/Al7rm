@@ -10,6 +10,7 @@ import { RequestStatus } from '../types/enums';
 import { UsersService } from '../users/users.service';
 import { VideoCallsService } from '../video-calls/video-calls.service';
 import { CreateSupportRequestDto } from './dto/create-support-request.dto';
+import { RateSupportRequestDto } from './dto/rate-support-request.dto';
 import { SupportRequestsGateway } from './support-requests.gateway';
 
 @Injectable()
@@ -262,6 +263,47 @@ export class SupportRequestsService {
     const updatedRequest = await this.findOne(requestId);
     
     // Notify about cancellation
+    this.supportRequestsGateway.notifyRequestUpdate(updatedRequest);
+
+    return updatedRequest;
+  }
+
+  async rateRequest(
+    requestId: string,
+    customerId: string,
+    rateDto: RateSupportRequestDto,
+  ): Promise<SupportRequest> {
+    const request = await this.findOne(requestId);
+
+    // Verify that the request belongs to the customer
+    if (request.customerId !== customerId) {
+      throw new BadRequestException('You are not authorized to rate this request');
+    }
+
+    // Verify that the request is completed
+    if (request.status !== RequestStatus.COMPLETED) {
+      throw new BadRequestException('Only completed requests can be rated');
+    }
+
+    // Verify that ratings are between 1 and 5
+    if (
+      rateDto.staffRating < 1 ||
+      rateDto.staffRating > 5 ||
+      rateDto.serviceRating < 1 ||
+      rateDto.serviceRating > 5
+    ) {
+      throw new BadRequestException('Ratings must be between 1 and 5');
+    }
+
+    // Update ratings
+    await this.supportRequestsRepository.update(requestId, {
+      staffRating: rateDto.staffRating,
+      serviceRating: rateDto.serviceRating,
+    });
+
+    const updatedRequest = await this.findOne(requestId);
+    
+    // Notify about rating update
     this.supportRequestsGateway.notifyRequestUpdate(updatedRequest);
 
     return updatedRequest;

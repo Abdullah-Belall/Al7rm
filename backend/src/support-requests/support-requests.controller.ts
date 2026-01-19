@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { SupportRequestsService } from './support-requests.service';
 import { CreateSupportRequestDto } from './dto/create-support-request.dto';
+import { RateSupportRequestDto } from './dto/rate-support-request.dto';
 import { JwtAuthGuard } from '../users/guards/jwt-auth.guard';
 import { RequestStatus } from '../types/enums';
 
@@ -70,6 +71,15 @@ export class SupportRequestsController {
   @Patch(':id/cancel')
   async cancel(@Param('id') id: string, @Request() req) {
     return this.supportRequestsService.cancelRequest(id, req.user.userId);
+  }
+
+  @Patch(':id/rate')
+  async rate(
+    @Param('id') id: string,
+    @Request() req,
+    @Body() rateDto: RateSupportRequestDto,
+  ) {
+    return this.supportRequestsService.rateRequest(id, req.user.userId, rateDto);
   }
 }
 

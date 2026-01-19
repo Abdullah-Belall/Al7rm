@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import { Plus, Phone, Globe, Languages } from 'lucide-react'
 import CreateRequestModal from '@/components/CreateRequestModal'
 import VideoCallModal from '@/components/VideoCallModal'
+import RatingModal from '@/components/RatingModal'
 import { io, Socket } from 'socket.io-client'
 import { NEXT_PUBLIC_API_URL } from '@/base'
 import Image from 'next/image'
@@ -21,6 +22,8 @@ interface SupportRequest {
   category: string
   customerId: string
   status: string
+  staffRating?: number | null
+  serviceRating?: number | null
   supporter?: {
     id: string
     name: string
@@ -40,9 +43,11 @@ export default function CustomerPage() {
   const [showCreateModal, setShowCreateModal] = useState(true)
   const [activeCall, setActiveCall] = useState<SupportRequest | null>(null)
   const [loading, setLoading] = useState(true)
+  const [completedRequestForRating, setCompletedRequestForRating] = useState<SupportRequest | null>(null)
+  const [ratedRequestIds, setRatedRequestIds] = useState<Set<string>>(new Set())
   const socketRef = useRef<Socket | null>(null)
   const supportRequestsSocketRef = useRef<Socket | null>(null)
-  const [debounce, setDebounce] = useState<NodeJS.Timeout | null>(null)
+  
   const fetchRequests = async () => {
     try {
       const token = localStorage.getItem('token')
@@ -60,6 +65,21 @@ export default function CustomerPage() {
       const activeRequests = (response.data || []).filter(
         (req: SupportRequest) => req.status !== 'completed' && req.status !== 'cancelled'
       )
+      
+      // إضافة الطلبات المكتملة التي لديها تقييمات إلى ratedRequestIds
+      const completedWithRatings = (response.data || []).filter(
+        (req: SupportRequest) => 
+          req.status === 'completed' && 
+          req.staffRating !== null && 
+          req.staffRating !== undefined &&
+          req.serviceRating !== null && 
+          req.serviceRating !== undefined
+      )
+      setRatedRequestIds((prev) => {
+        const newSet = new Set(prev)
+        completedWithRatings.forEach((req: SupportRequest) => newSet.add(req.id))
+        return newSet
+      })
       
       setRequests(activeRequests)
       
@@ -184,6 +204,17 @@ export default function CustomerPage() {
             }
             return currentCall
           })
+          
+          // إذا كان الطلب مكتملاً ولم يتم تقييمه من قبل، اعرض popup التقييم
+          if (request.status === 'completed' && !ratedRequestIds.has(request.id)) {
+            // تحقق إذا كان الطلب لديه تقييمات بالفعل (من قاعدة البيانات)
+            if (!request.staffRating || !request.serviceRating) {
+              setCompletedRequestForRating(request)
+            } else {
+              // إذا كان لديه تقييمات بالفعل، أضفه إلى القائمة لمنع إعادة العرض
+              setRatedRequestIds((prev) => new Set(prev).add(request.id))
+            }
+          }
           
           return
         }
@@ -363,7 +394,11 @@ export default function CustomerPage() {
 
       {showCreateModal && (
         <CreateRequestModal
-          onClose={() => setShowCreateModal(false)}
+          onClose={() => {
+            localStorage.removeItem('selectedLanguage')
+            setShowCreateModal(false)
+            router.push('/customer/select-language')
+          }}
           onSuccess={() => {
             setShowCreateModal(false)
             fetchRequests()
@@ -375,6 +410,22 @@ export default function CustomerPage() {
         <VideoCallModal
           call={activeCall.videoCall!}
           onClose={() => setActiveCall(null)}
+        />
+      )}
+
+      {completedRequestForRating && (
+        <RatingModal
+          requestId={completedRequestForRating.id}
+          onClose={() => {
+            localStorage.removeItem('selectedLanguage')
+            setCompletedRequestForRating(null)
+            setRatedRequestIds((prev) => new Set(prev).add(completedRequestForRating.id))
+            router.push('/customer/select-language')
+          }}
+          onSuccess={() => {
+            setRatedRequestIds((prev) => new Set(prev).add(completedRequestForRating.id))
+            fetchRequests()
+          }}
         />
       )}
     </div>
