@@ -40,7 +40,7 @@ export default function CustomerPage() {
   const [loading, setLoading] = useState(true)
   const socketRef = useRef<Socket | null>(null)
   const supportRequestsSocketRef = useRef<Socket | null>(null)
-
+  const [debounce, setDebounce] = useState<NodeJS.Timeout | null>(null)
   const fetchRequests = async () => {
     try {
       const token = localStorage.getItem('token')
@@ -62,14 +62,7 @@ export default function CustomerPage() {
       setRequests(activeRequests)
       
       // إذا لم يكن هناك طلبات نشطة، أعد التوجيه لصفحة اختيار اللغة
-      if (activeRequests.length === 0) {
-        setLoading(false)
-        setTimeout(() => {
-          localStorage.removeItem('selectedLanguage')
-          router.push('/customer/select-language')
-        }, 25000)
-        return
-      }
+
       setLoading(false)
     } catch (error: any) {
       console.error('fetchRequests: Error', {
@@ -95,6 +88,16 @@ export default function CustomerPage() {
       toast.error('فشل في تحميل الطلبات')
     }
   }
+
+  useEffect(() => {
+    if(debounce) clearTimeout(debounce)
+    if (requests.length === 0) {
+      setDebounce(setTimeout(() => {
+        localStorage.removeItem('selectedLanguage')
+        router.push('/customer/select-language')
+      }, 30000))
+    }
+  }, [requests])
 
   useEffect(() => {
     // تحقق من المصادقة بعد تحميل البيانات من localStorage
