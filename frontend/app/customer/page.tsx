@@ -64,11 +64,12 @@ export default function CustomerPage() {
       // إذا لم يكن هناك طلبات نشطة، أعد التوجيه لصفحة اختيار اللغة
       if (activeRequests.length === 0) {
         setLoading(false)
-        localStorage.removeItem('selectedLanguage')
-        router.push('/customer/select-language')
+        setTimeout(() => {
+          localStorage.removeItem('selectedLanguage')
+          router.push('/customer/select-language')
+        }, 25000)
         return
       }
-      
       setLoading(false)
     } catch (error: any) {
       console.error('fetchRequests: Error', {
