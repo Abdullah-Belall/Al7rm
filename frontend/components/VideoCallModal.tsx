@@ -949,65 +949,68 @@ export default function VideoCallModal({ call, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-      <div className="relative w-full h-full max-w-7xl mx-auto p-4">
+      <div className="relative w-full h-full">
+        {/* Remote video - full screen */}
+        <div className="absolute inset-0 w-full h-full">
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            muted={false}
+            className="w-full h-full object-cover"
+            onLoadedMetadata={() => {
+              console.log('Remote video metadata loaded')
+              if (remoteVideoRef.current) {
+                remoteVideoRef.current.play().catch(err => {
+                  console.error('Error auto-playing remote video:', err)
+                })
+              }
+            }}
+            onPlay={() => {
+              console.log('Remote video started playing')
+            }}
+            onError={(e) => {
+              console.error('Remote video error:', e)
+            }}
+          />
+          <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 text-white bg-black/70 backdrop-blur-sm px-2 sm:px-3 py-1 rounded text-xs sm:text-sm border border-gold/30">
+            الطرف الآخر
+          </div>
+          {!hasRemoteStream && (
+            <div className="absolute inset-0 flex items-center justify-center text-white bg-black/50">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold mx-auto mb-4"></div>
+                <p className="text-sm sm:text-base">في انتظار الطرف الآخر...</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Local video - small in top left corner */}
+        <div className="absolute top-4 left-4 w-[200px] sm:w-[250px] md:w-[300px] aspect-video bg-gray-900 rounded-lg overflow-hidden border-2 border-gold/40 shadow-2xl z-20">
+          <video
+            ref={localVideoRef}
+            autoPlay
+            muted
+            playsInline
+            className="w-full h-full object-cover"
+            style={{ transform: 'scaleX(-1)' }}
+          />
+          <div className="absolute bottom-2 left-2 text-white bg-black/70 backdrop-blur-sm px-2 py-1 rounded text-xs border border-gold/30">
+            أنت
+          </div>
+        </div>
+
+        {/* Close button - top right */}
         <button
           onClick={handleEndCall}
-          className="absolute top-4 left-4 text-white hover:text-gray-300 z-10"
+          className="absolute top-4 right-4 text-white hover:text-gray-300 z-30 bg-black/50 backdrop-blur-sm p-2 rounded-full hover:bg-black/70 transition-all"
         >
           <X size={24} />
         </button>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full max-h-[calc(100vh-180px)] sm:max-h-[calc(100vh-200px)]">
-          <div className="relative bg-gray-900 rounded-lg overflow-hidden border border-gold/20">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 text-white bg-black/70 backdrop-blur-sm px-2 sm:px-3 py-1 rounded text-xs sm:text-sm border border-gold/30">
-              أنت
-            </div>
-          </div>
-
-          <div className="relative bg-gray-900 rounded-lg overflow-hidden border border-gold/20">
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              muted={false}
-              className="w-full h-full object-cover"
-              onLoadedMetadata={() => {
-                console.log('Remote video metadata loaded')
-                if (remoteVideoRef.current) {
-                  remoteVideoRef.current.play().catch(err => {
-                    console.error('Error auto-playing remote video:', err)
-                  })
-                }
-              }}
-              onPlay={() => {
-                console.log('Remote video started playing')
-              }}
-              onError={(e) => {
-                console.error('Remote video error:', e)
-              }}
-            />
-            <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 text-white bg-black/70 backdrop-blur-sm px-2 sm:px-3 py-1 rounded text-xs sm:text-sm border border-gold/30">
-              الطرف الآخر
-            </div>
-            {!hasRemoteStream && (
-              <div className="absolute inset-0 flex items-center justify-center text-white bg-black/50">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold mx-auto mb-4"></div>
-                  <p className="text-sm sm:text-base">في انتظار الطرف الآخر...</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="absolute bottom-4 sm:bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3 sm:gap-4 flex-wrap justify-center">
+        {/* Control buttons - bottom center */}
+        <div className="absolute bottom-4 sm:bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3 sm:gap-4 flex-wrap justify-center z-30">
           <button
             onClick={toggleVideo}
             className={`p-3 sm:p-4 rounded-full transition-all ${
