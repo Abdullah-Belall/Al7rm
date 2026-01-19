@@ -28,6 +28,7 @@ export class SupportRequestsService {
   ): Promise<SupportRequest> {
     const request = this.supportRequestsRepository.create({
       ...createDto,
+      age: createDto.age ? Number(createDto.age) : null,
       customerId,
       status: RequestStatus.PENDING,
     });

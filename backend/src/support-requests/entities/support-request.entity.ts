@@ -31,8 +31,14 @@ export class SupportRequest {
   @JoinColumn({ name: 'supporterId' })
   supporter: User;
 
-  @Column({ type: 'text', nullable: true })
-  description: string;
+  @Column({ nullable: true })
+  name: string;
+
+  @Column({ type: 'int', nullable: true  })
+  age: number;
+
+  @Column({ nullable: true })
+  nationality: string;
 
   @Column({
     type: 'enum',

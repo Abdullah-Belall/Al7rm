@@ -9,8 +9,10 @@ export enum UserLanguage {
   ARABIC = 'ar',
   ENGLISH = 'en',
   FRENCH = 'fr',
-  PERSIAN = 'fa',
-  HINDI = 'hi',
+  GERMAN = 'de',
+  RUSSIAN = 'ru',
+  CHINESE = 'zh',
+  URDU = 'ur',
 }
 
 export enum RequestStatus {

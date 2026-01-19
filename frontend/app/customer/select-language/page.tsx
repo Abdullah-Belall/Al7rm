@@ -6,13 +6,22 @@ import { useAuthStore } from '@/store/authStore'
 import { Languages } from 'lucide-react'
 import Image from 'next/image'
 import kaaba from '@/public/kaaba.jpg'
+import arFlag from '@/public/images/flags/ar.jpeg'
+import enFlag from '@/public/images/flags/en.jpeg'
+import frFlag from '@/public/images/flags/fr.jpeg'
+import deFlag from '@/public/images/flags/de.jpeg'
+import ruFlag from '@/public/images/flags/ru.jpeg'
+import zhFlag from '@/public/images/flags/zh.jpeg'
+import urFlag from '@/public/images/flags/ur.jpeg'
 
 const LANGUAGES = [
-  { code: 'ar', name: 'العربية', nativeName: 'العربية' },
-  { code: 'en', name: 'English', nativeName: 'English' },
-  { code: 'fr', name: 'Français', nativeName: 'Français' },
-  { code: 'fa', name: 'Persian', nativeName: 'فارسی' },
-  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी' },
+  { code: 'ar', name: 'العربية', nativeName: 'العربية', flag: arFlag },
+  { code: 'en', name: 'English', nativeName: 'English', flag: enFlag },
+  { code: 'fr', name: 'Français', nativeName: 'Français', flag: frFlag },
+  { code: 'de', name: 'Deutsch', nativeName: 'Deutsch', flag: deFlag },
+  { code: 'ru', name: 'Русский', nativeName: 'Русский', flag: ruFlag },
+  { code: 'zh', name: '中国人' , nativeName: '中国人', flag: zhFlag },
+  { code: 'ur', name: 'اردو' , nativeName: 'اردو', flag: urFlag },
 ]
 
 export default function SelectLanguagePage() {
@@ -71,7 +80,7 @@ export default function SelectLanguagePage() {
           unoptimized
         />
       </div>
-      <div className="z-[20] bg-gray-900/95 backdrop-blur-sm border border-gold/30 rounded-2xl p-4 sm:p-6 w-full max-w-md">
+      <div className="z-[20] bg-gray-900/95 backdrop-blur-sm border border-gold/30 rounded-2xl p-4 w-full max-w-md">
         <div className="text-center mb-6 sm:mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gold/20 rounded-full mb-4 border border-gold/30">
             <Languages className="w-8 h-8 text-gold" />
@@ -85,11 +94,11 @@ export default function SelectLanguagePage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-3 max-h-[calc(100dvh-300px)] overflow-y-scroll pr-2 custom-scrollbar">
+          <div className="space-y-3 max-h-[calc(100dvh-320px)] overflow-y-scroll pr-2 custom-scrollbar">
             {LANGUAGES.map((lang) => (
               <label
                 key={lang.code}
-                className={`flex items-center p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                className={`flex items-center gap-4 p-3 sm:p-4 border-2 rounded-lg cursor-pointer transition-all ${
                   selectedLanguage === lang.code
                     ? 'border-gold bg-gold/20'
                     : 'border-gray-700 hover:border-gold/50 hover:bg-gray-800/50'
@@ -108,6 +117,9 @@ export default function SelectLanguagePage() {
                     {lang.nativeName}
                   </div>
                   <div className="text-xs sm:text-sm text-gray-400">{lang.name}</div>
+                </div>
+                <div className='mr-auto'>
+                  <Image width={50} height={20} src={lang.flag} alt={lang.code} />
                 </div>
               </label>
             ))}

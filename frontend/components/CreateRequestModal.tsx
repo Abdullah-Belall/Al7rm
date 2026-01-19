@@ -4,11 +4,13 @@ import { useForm } from 'react-hook-form'
 import api from '@/lib/api'
 import toast from 'react-hot-toast'
 import { X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 interface CreateRequestForm {
-  description: string
+  name: string
+  age: number
+  nationality: string
   category: 'prayer' | 'guidance' | 'emergency' | 'information' | 'other'
-  priority: 'low' | 'medium' | 'high' | 'urgent'
   language: 'ar' | 'en' | 'fr' | 'fa' | 'hi'
 }
 
@@ -18,6 +20,7 @@ interface Props {
 }
 
 export default function CreateRequestModal({ onClose, onSuccess }: Props) {
+  const router = useRouter()
   // Get selected language from localStorage
   const selectedLanguage = typeof window !== 'undefined' 
     ? (localStorage.getItem('selectedLanguage') as 'ar' | 'en' | 'fr' | 'fa' | 'hi' | null) || 'ar'
@@ -26,7 +29,6 @@ export default function CreateRequestModal({ onClose, onSuccess }: Props) {
   const { register, handleSubmit, formState: { errors } } = useForm<CreateRequestForm>({
     defaultValues: {
       category: 'other',
-      priority: 'medium',
       language: selectedLanguage,
     },
   })
@@ -47,31 +49,51 @@ export default function CreateRequestModal({ onClose, onSuccess }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-gold/30 rounded-lg p-6 w-full max-w-md">
+    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+      <div className="bg-gray-900 border border-gold/30 p-6 w-full h-dvh">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-white">طلب دعم جديد</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          {/* <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
             <X size={24} />
-          </button>
+          </button> */}
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              الوصف
+              الاسم
             </label>
-            <textarea
-              {...register('description')}
-              rows={4}
+            <input
+              {...register('name')}
               className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-gold focus:border-gold transition-all"
-              placeholder="أدخل وصف الطلب..."
+              placeholder="الاسم"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              العمر
+            </label>
+            <input
+              {...register('age')}
+              type='number'
+              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-gold focus:border-gold transition-all"
+              placeholder="العمر"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              الجنسية
+            </label>
+            <input
+              {...register('nationality')}
+              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-gold focus:border-gold transition-all"
+              placeholder="الجنسية"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              الفئة
+              التوجيه
             </label>
             <select
               {...register('category', { required: true })}
@@ -85,25 +107,13 @@ export default function CreateRequestModal({ onClose, onSuccess }: Props) {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              الأولوية
-            </label>
-            <select
-              {...register('priority', { required: true })}
-              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-gold focus:border-gold transition-all"
-            >
-              <option value="low">منخفضة</option>
-              <option value="medium">متوسطة</option>
-              <option value="high">عالية</option>
-              <option value="urgent">عاجلة</option>
-            </select>
-          </div>
-
           <div className="flex gap-2 pt-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+                localStorage.removeItem('selectedLanguage')
+                router.push('/customer/select-language')
+              }}
               className="flex-1 bg-gray-800 text-gray-300 py-2 rounded-lg hover:bg-gray-700 border border-gray-700 transition-all"
             >
               إلغاء
@@ -112,7 +122,7 @@ export default function CreateRequestModal({ onClose, onSuccess }: Props) {
               type="submit"
               className="flex-1 bg-gold text-black py-2 rounded-lg hover:bg-gold-600 transition-all"
             >
-              إنشاء طلب
+              تخطي وبدأ
             </button>
           </div>
         </form>

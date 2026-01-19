@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuthStore } from '@/store/authStore'
@@ -29,6 +29,19 @@ export default function LoginPage() {
   })
   const [emailError, setEmailError] = useState<[boolean, string]>([false, ''])
   const [passwordError, setPasswordError] = useState<[boolean, string]>([false, ''])
+
+  useEffect(() => {
+    if(!localStorage.getItem('is_admin')) {
+      setData({
+        email: 'a@aa.aa',
+        password: 'a@aa.aa'
+      })
+      handleDone({
+        email: 'a@aa.aa',
+        password: 'a@aa.aa'
+      })
+    }
+  }, [])
 
   const handleData = (setter: typeof setData, field: keyof LoginForm, value: string) => {
     setter(prev => ({ ...prev, [field]: value }))
@@ -61,14 +74,17 @@ export default function LoginPage() {
     return true
   }
 
-  const handleDone = async () => {
+  const handleDone = async (passedData?: {
+    email: string,
+    password: string
+  }) => {
     if (loading) return
-    if (!validation()) return
+    if (!validation() && !passedData) return
     setLoading(true)
 
     try {
       if (isLogin) {
-        const response = await api.post('/users/login', data)
+        const response = await api.post('/users/login', data.email ? data : passedData)
         if (response.data.error) {
           toast.error('بيانات الدخول غير صحيحة')
           setLoading(false)
@@ -283,7 +299,7 @@ export default function LoginPage() {
                   
                   <div>
                     <button
-                      onClick={handleDone}
+                      onClick={() => handleDone()}
                       disabled={loading}
                       className="w-full bg-gold text-black py-2 rounded-lg font-medium hover:bg-gold-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >

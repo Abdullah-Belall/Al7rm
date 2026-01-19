@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import toast from 'react-hot-toast'
-import { Plus, Phone, Globe } from 'lucide-react'
+import { Plus, Phone, Globe, Languages } from 'lucide-react'
 import CreateRequestModal from '@/components/CreateRequestModal'
 import VideoCallModal from '@/components/VideoCallModal'
 import { io, Socket } from 'socket.io-client'
@@ -15,7 +15,9 @@ import kaaba from '@/public/kaaba.jpg'
 
 interface SupportRequest {
   id: string
-  description: string
+  name: string | null;
+  age: number | null;
+  nationality: string | null
   category: string
   customerId: string
   status: string
@@ -35,7 +37,7 @@ export default function CustomerPage() {
   const router = useRouter()
   const { user, isAuthenticated, logout } = useAuthStore()
   const [requests, setRequests] = useState<SupportRequest[]>([])
-  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(true)
   const [activeCall, setActiveCall] = useState<SupportRequest | null>(null)
   const [loading, setLoading] = useState(true)
   const socketRef = useRef<Socket | null>(null)
@@ -281,22 +283,6 @@ export default function CustomerPage() {
             <h1 className="text-lg sm:text-xl font-bold text-gold">
               نظام الدعم - المسجد الحرام
             </h1>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
-              <span className="text-gray-300 text-sm sm:text-base">مرحباً، {user?.name}</span>
-              <button
-                onClick={() => router.push('/customer/select-language')}
-                className="flex items-center gap-2 text-gold hover:text-gold-300 text-sm sm:text-base transition-colors"
-              >
-                <Globe size={18} />
-                تغيير اللغة
-              </button>
-              <button
-                onClick={logout}
-                className="text-red-400 hover:text-red-300 text-sm sm:text-base transition-colors"
-              >
-                تسجيل الخروج
-              </button>
-            </div>
           </div>
         </div>
       </nav>
@@ -304,13 +290,25 @@ export default function CustomerPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 !z-[20]">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h2 className="text-xl sm:text-2xl font-bold text-white">طلبات الدعم</h2>
-          <button
+          <div className='flex gap-2'>
+          {/* <button
+            onClick={() => {
+              localStorage.removeItem('selectedLanguage')
+              router.push('/customer/select-language')
+            }}
+            className="flex items-center justify-center gap-2 bg-gold text-black px-4 py-2 rounded-lg hover:bg-gold-600 transition-all w-full sm:w-auto"
+          >
+            <Languages size={20} />
+            تغيير اللغة
+          </button> */}
+          {/* <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center justify-center gap-2 bg-gold text-black px-4 py-2 rounded-lg hover:bg-gold-600 transition-all w-full sm:w-auto"
           >
             <Plus size={20} />
             طلب دعم جديد
-          </button>
+          </button> */}
+          </div>
         </div>
 
         <div className="grid gap-4">
@@ -333,7 +331,7 @@ export default function CustomerPage() {
                       {new Date(request.createdAt).toLocaleDateString('ar-SA')}
                     </span>
                   </div>
-                  <p className="text-gray-200 mb-2 text-sm sm:text-base">{request.description || 'لا يوجد وصف'}</p>
+                  <p className="text-gray-200 mb-2 text-sm sm:text-base">{request.name || "لا يوجد اسم"}</p>
                   <p className="text-sm text-gray-400">الفئة: {request.category}</p>
                   {request.supporter && (
                     <p className="text-sm text-gold mt-2">
