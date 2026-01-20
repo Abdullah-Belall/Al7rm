@@ -6,13 +6,13 @@ import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import toast from 'react-hot-toast'
 import { Phone } from 'lucide-react'
+import CreateRequestModal from '@/components/CreateRequestModal'
 import VideoCallModal from '@/components/VideoCallModal'
 import RatingModal from '@/components/RatingModal'
 import { io, Socket } from 'socket.io-client'
 import { NEXT_PUBLIC_API_URL } from '@/base'
 import Image from 'next/image'
 import kaaba from '@/public/kaaba.jpg'
-import logo from '@/public/images/logo/logoAlhrmen.jpeg'
 
 interface SupportRequest {
   id: string
@@ -40,22 +40,22 @@ export default function CustomerPage() {
   const router = useRouter()
   const { user, isAuthenticated } = useAuthStore()
   const [requests, setRequests] = useState<SupportRequest[]>([])
+  const [showCreateModal, setShowCreateModal] = useState(true)
   const [activeCall, setActiveCall] = useState<SupportRequest | null>(null)
   const [loading, setLoading] = useState(true)
   const [completedRequestForRating, setCompletedRequestForRating] = useState<SupportRequest | null>(null)
   const [ratedRequestIds, setRatedRequestIds] = useState<Set<string>>(new Set())
   const socketRef = useRef<Socket | null>(null)
   const supportRequestsSocketRef = useRef<Socket | null>(null)
-  const orderCreatedRef = useRef<boolean>(false)
 
-  const fetchRequests = async (): Promise<SupportRequest[]> => {
+  const fetchRequests = async () => {
     try {
       const token = localStorage.getItem('token')
       if (!token) {
         console.error('fetchRequests: No token found')
         setLoading(false)
         router.push('/login')
-        return []
+        return
       }
       console.log('fetchRequests: Making request with token', { tokenLength: token.length })
       const response = await api.get('/support-requests')
@@ -83,16 +83,9 @@ export default function CustomerPage() {
       
       setRequests(activeRequests)
       
-      // إعادة تعيين العلامة عند إعادة تحميل الطلبات
-      // إذا كان هناك طلبات نشطة، لا نريد إنشاء طلب جديد
-      if (activeRequests.length > 0) {
-        orderCreatedRef.current = true
-      } else {
-        orderCreatedRef.current = false
-      }
+      // إذا لم يكن هناك طلبات نشطة، أعد التوجيه لصفحة اختيار اللغة
 
       setLoading(false)
-      return activeRequests
     } catch (error: any) {
       console.error('fetchRequests: Error', {
         status: error.response?.status,
@@ -110,49 +103,11 @@ export default function CustomerPage() {
         localStorage.removeItem('auth-storage')
         // استخدم router.push بدلاً من window.location لتجنب reload
         router.push('/login')
-        return undefined as any
+        return
       }
       
       setLoading(false)
       toast.error('فشل في تحميل الطلبات')
-      return []
-    }
-  }
-
-
-  const createOneOrder = async () => {
-    // منع الإنشاء المتكرر
-    if (orderCreatedRef.current) {
-      return
-    }
-
-    // التحقق من وجود طلبات نشطة قبل إنشاء طلب جديد
-    if (requests.length > 0) {
-      console.log('createOneOrder: هناك طلبات نشطة بالفعل، لن يتم إنشاء طلب جديد')
-      return
-    }
-
-    const selectedLanguage = typeof window !== 'undefined' 
-    ? (localStorage.getItem('selectedLanguage') as 'ar' | 'en' | 'fr' | 'fa' | 'hi' | null) || 'ar'
-    : 'ar'
-    
-    try {
-      // Ensure language is included
-      const requestData = {
-        language: selectedLanguage,
-      }
-      
-      // ضع علامة قبل إنشاء الطلب
-      orderCreatedRef.current = true
-      
-      await api.post('/support-requests', requestData)
-      toast.success('تم إنشاء الطلب بنجاح')
-      // Refresh requests after creating
-      await fetchRequests()
-    } catch (error: any) {
-      // في حالة الخطأ، أزل العلامة للسماح بالمحاولة مرة أخرى
-      orderCreatedRef.current = false
-      toast.error(error.response?.data?.message || 'فشل في إنشاء الطلب')
     }
   }
 
@@ -172,7 +127,7 @@ export default function CustomerPage() {
         })
         setLoading(false)
         router.push('/login')
-        return { success: false, hasActiveRequests: false }
+        return
       }
 
       try {
@@ -193,19 +148,16 @@ export default function CustomerPage() {
           })
           setLoading(false)
           router.push('/login')
-          return { success: false, hasActiveRequests: false }
+          return
         }
 
         // إذا كان المستخدم customer وموجود token، احمل الطلبات
         // تأكد من أن token موجود قبل الاستدعاء
-        const activeRequests = await fetchRequests()
-        
-        return { success: true, hasActiveRequests: activeRequests.length > 0 }
+        fetchRequests()
       } catch (e) {
         console.error('Error parsing auth storage:', e)
         setLoading(false)
         router.push('/login')
-        return { success: false, hasActiveRequests: false }
       }
     }
 
@@ -216,15 +168,7 @@ export default function CustomerPage() {
       return
     }
 
-    checkAuthAndFetch().then(async (result) => {
-      // Create order after auth check and language confirmation
-      // فقط إذا لم يكن هناك طلبات نشطة بالفعل
-      if (result.success && !result.hasActiveRequests) {
-        // انتظر قليلاً للتأكد من تحديث state
-        await new Promise(resolve => setTimeout(resolve, 200))
-        createOneOrder()
-      }
-    })
+    checkAuthAndFetch()
   }, [router])
 
   // Setup WebSocket connection for real-time updates
@@ -366,8 +310,7 @@ export default function CustomerPage() {
       <nav className="bg-black/90 backdrop-blur-sm border-b border-gold/20 !z-[20]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between gap-4 h-auto sm:h-16 items-start sm:items-center py-4 sm:py-0">
-            <h1 className="flex gap-4 text-lg sm:text-xl font-bold text-gold items-center">
-              <Image width={40} height={20} src={logo} alt='logo' />
+            <h1 className="text-lg sm:text-xl font-bold text-gold">
               نظام الدعم - المسجد الحرام
             </h1>
           </div>
@@ -448,6 +391,19 @@ export default function CustomerPage() {
         </div>
       </main>
 
+      {showCreateModal && (
+        <CreateRequestModal
+          onClose={() => {
+            localStorage.removeItem('selectedLanguage')
+            setShowCreateModal(false)
+            router.push('/customer/select-language')
+          }}
+          onSuccess={() => {
+            setShowCreateModal(false)
+            fetchRequests()
+          }}
+        />
+      )}
 
       {activeCall && (
         <VideoCallModal

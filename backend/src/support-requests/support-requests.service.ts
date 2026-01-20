@@ -25,10 +25,11 @@ export class SupportRequestsService {
 
   async create(
     customerId: string,
-    { language }: CreateSupportRequestDto,
+    createDto: CreateSupportRequestDto,
   ): Promise<SupportRequest> {
     const request = this.supportRequestsRepository.create({
-      language,
+      ...createDto,
+      age: createDto.age ? Number(createDto.age) : null,
       customerId,
       status: RequestStatus.PENDING,
     });
@@ -104,6 +105,11 @@ export class SupportRequestsService {
     // Add language filter if request has a language
     if (request.language) {
       filters.language = request.language;
+    }
+
+    // Add category-based specialty filter if applicable
+    if (request.category) {
+      filters.specialties = [request.category];
     }
 
     // Find available supporters
