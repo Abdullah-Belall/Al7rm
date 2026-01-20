@@ -986,8 +986,8 @@ export default function VideoCallModal({ call, onClose }: Props) {
           )}
         </div>
 
-        {/* Local video - small in top left corner */}
-        <div className="absolute top-4 left-4 w-[200px] sm:w-[250px] md:w-[300px] aspect-video bg-gray-900 rounded-lg overflow-hidden border-2 border-gold/40 shadow-2xl z-20">
+        {/* Local video - small in top right corner - portrait */}
+        <div className="absolute top-4 right-4 w-[150px] sm:w-[200px] md:w-[250px] h-[250px] sm:h-[350px] md:h-[450px] bg-gray-900 rounded-lg overflow-hidden border-2 border-gold/40 shadow-2xl z-20">
           <video
             ref={localVideoRef}
             autoPlay
@@ -1001,10 +1001,10 @@ export default function VideoCallModal({ call, onClose }: Props) {
           </div>
         </div>
 
-        {/* Close button - top right */}
+        {/* Close button - top right, below video */}
         <button
           onClick={handleEndCall}
-          className="absolute top-4 right-4 text-white hover:text-gray-300 z-30 bg-black/50 backdrop-blur-sm p-2 rounded-full hover:bg-black/70 transition-all"
+          className="absolute top-4 left-[10px] text-white hover:text-gray-300 z-30 bg-black/50 backdrop-blur-sm p-2 rounded-full hover:bg-black/70 transition-all"
         >
           <X size={24} />
         </button>

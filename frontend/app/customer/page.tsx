@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import api from '@/lib/api'
 import toast from 'react-hot-toast'
-import { Phone } from 'lucide-react'
+import { Phone, Loader2 } from 'lucide-react'
 import CreateRequestModal from '@/components/CreateRequestModal'
 import VideoCallModal from '@/components/VideoCallModal'
 import RatingModal from '@/components/RatingModal'
@@ -13,6 +13,7 @@ import { io, Socket } from 'socket.io-client'
 import { NEXT_PUBLIC_API_URL } from '@/base'
 import Image from 'next/image'
 import kaaba from '@/public/kaaba.jpg'
+import logo from '@/public/images/logo/logoalhramin.jpeg'
 
 interface SupportRequest {
   id: string
@@ -63,7 +64,7 @@ export default function CustomerPage() {
       
       // فلترة الطلبات: استبعاد الطلبات المكتملة والملغاة
       const activeRequests = (response.data || []).filter(
-        (req: SupportRequest) => req.status !== 'completed' && req.status !== 'rejected'
+        (req: SupportRequest) => req.status !== 'completed' && req.status !== 'cancelled' &&req.status !== 'rejected'
       )
       
       // إضافة الطلبات المكتملة التي لديها تقييمات إلى ratedRequestIds
@@ -310,7 +311,8 @@ export default function CustomerPage() {
       <nav className="bg-black/90 backdrop-blur-sm border-b border-gold/20 !z-[20]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between gap-4 h-auto sm:h-16 items-start sm:items-center py-4 sm:py-0">
-            <h1 className="text-lg sm:text-xl font-bold text-gold">
+            <h1 className="text-lg sm:text-xl font-bold text-gold flex items-center gap-2">
+              <Image src={logo} alt='logo' width={40} height={20} />
               نظام الدعم - المسجد الحرام
             </h1>
           </div>
@@ -351,18 +353,19 @@ export default function CustomerPage() {
                 <div className="flex-1 w-full">
                   <div className="flex flex-wrap items-center gap-3 mb-2">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${getStatusColor(
+                      className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex items-center gap-2 ${getStatusColor(
                         request.status
                       )}`}
                     >
+                      {request.status === 'pending' || request.status === 'assigned' && (
+                        <Loader2 size={14} className="animate-spin" />
+                      )}
                       {getStatusText(request.status)}
                     </span>
                     <span className="text-xs sm:text-sm text-gray-400">
                       {new Date(request.createdAt).toLocaleDateString('ar-SA')}
                     </span>
                   </div>
-                  <p className="text-gray-200 mb-2 text-sm sm:text-base">{request.name || "لا يوجد اسم"}</p>
-                  <p className="text-sm text-gray-400">الفئة: {request.category}</p>
                   {request.supporter && (
                     <p className="text-sm text-gold mt-2">
                       الداعم: {request.supporter.name}
@@ -422,8 +425,10 @@ export default function CustomerPage() {
             router.push('/customer/select-language')
           }}
           onSuccess={() => {
+            localStorage.removeItem('selectedLanguage')
             setRatedRequestIds((prev) => new Set(prev).add(completedRequestForRating.id))
             fetchRequests()
+            router.push('/customer/select-language')
           }}
         />
       )}

@@ -31,29 +31,6 @@ export class SupportRequest {
   @JoinColumn({ name: 'supporterId' })
   supporter: User;
 
-  @Column({ nullable: true })
-  name: string;
-
-  @Column({ type: 'int', nullable: true  })
-  age: number;
-
-  @Column({ nullable: true })
-  nationality: string;
-
-  @Column({
-    type: 'enum',
-    enum: RequestCategory,
-    default: RequestCategory.OTHER,
-  })
-  category: RequestCategory;
-
-  @Column({
-    type: 'enum',
-    enum: RequestPriority,
-    default: RequestPriority.MEDIUM,
-  })
-  priority: RequestPriority;
-
   @Column({
     type: 'enum',
     enum: RequestStatus,
