@@ -987,7 +987,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
         </div>
 
         {/* Local video - small in top right corner - portrait */}
-        <div className="absolute top-4 right-4 w-[150px] sm:w-[200px] md:w-[250px] h-[250px] sm:h-[350px] md:h-[450px] bg-gray-900 rounded-lg overflow-hidden border-2 border-gold/40 shadow-2xl z-20">
+        <div className="absolute top-4 right-4 w-[75px] sm:w-[100px] md:w-[125px] h-[125px] sm:h-[175px] md:h-[225px] bg-gray-900 rounded-lg overflow-hidden border-2 border-gold/40 shadow-2xl z-20">
           <video
             ref={localVideoRef}
             autoPlay
