@@ -412,6 +412,7 @@ export default function CustomerPage() {
         <VideoCallModal
           call={activeCall.videoCall!}
           onClose={() => setActiveCall(null)}
+          remoteUserName={activeCall.supporter?.name}
         />
       )}
 

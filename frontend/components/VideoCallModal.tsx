@@ -16,14 +16,18 @@ interface VideoCall {
 interface Props {
   call: VideoCall
   onClose: () => void
+  remoteUserName?: string // اسم الطرف الآخر (الداعم للعميل، أو العميل للداعم)
 }
 
-export default function VideoCallModal({ call, onClose }: Props) {
+export default function VideoCallModal({ call, onClose, remoteUserName }: Props) {
   const { user } = useAuthStore()
   const [socket, setSocket] = useState<Socket | null>(null)
   const [isVideoEnabled, setIsVideoEnabled] = useState(true)
   const [isAudioEnabled, setIsAudioEnabled] = useState(true)
   const [hasRemoteStream, setHasRemoteStream] = useState(false)
+  const [callDuration, setCallDuration] = useState(0) // مدة المكالمة بالثواني
+  const callStartTimeRef = useRef<number | null>(null)
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -84,6 +88,13 @@ export default function VideoCallModal({ call, onClose }: Props) {
     joinedRoomRef.current = false
     iceCandidateStatsRef.current = { host: 0, srflx: 0, relay: 0 }
     iceRestartAttemptsRef.current = 0
+    // إعادة تعيين العداد الزمني
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+    }
+    callStartTimeRef.current = null
+    setCallDuration(0)
 
     const wsUrl = NEXT_PUBLIC_API_URL
     const newSocket = io(wsUrl, {
@@ -224,6 +235,20 @@ export default function VideoCallModal({ call, onClose }: Props) {
           
           remoteVideoRef.current.srcObject = remoteStream
           setHasRemoteStream(true)
+          
+          // بدء العداد الزمني عند استلام الـ stream (مرة واحدة فقط)
+          if (callStartTimeRef.current === null && !timerIntervalRef.current) {
+            callStartTimeRef.current = Date.now()
+            // تحديث العداد كل ثانية
+            timerIntervalRef.current = setInterval(() => {
+              if (callStartTimeRef.current) {
+                const elapsed = Math.floor((Date.now() - callStartTimeRef.current) / 1000)
+                setCallDuration(elapsed)
+              }
+            }, 1000)
+            console.log('⏱️ Call timer started')
+          }
+          
           remoteVideoRef.current.play().catch(err => {
             console.error('Error playing remote video:', err)
           })
@@ -844,6 +869,11 @@ export default function VideoCallModal({ call, onClose }: Props) {
     // Do NOT cleanup resources here - that's handleEndCall's job
     return () => {
       console.log('Component unmounting - cleaning up socket only...')
+      // إيقاف العداد الزمني عند unmount
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current)
+        timerIntervalRef.current = null
+      }
       // Only disconnect socket, don't cleanup media/resources
       // Resources will be cleaned up by handleEndCall if needed
       try {
@@ -859,6 +889,14 @@ export default function VideoCallModal({ call, onClose }: Props) {
 
   const handleEndCall = () => {
     console.log('🔴 Ending call - cleanup starting...')
+    
+    // إيقاف العداد الزمني
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+    }
+    callStartTimeRef.current = null
+    setCallDuration(0)
     
     // Emit leave-room event before cleanup
     if (socketRef.current && socketRef.current.connected) {
@@ -926,6 +964,13 @@ export default function VideoCallModal({ call, onClose }: Props) {
     // Close UI modal (this is UI-only, doesn't affect call state)
     onClose()
   }
+  
+  // دالة لتنسيق الوقت (دقائق:ثواني)
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
 
   const toggleVideo = () => {
     if (localStreamRef.current) {
@@ -974,7 +1019,7 @@ export default function VideoCallModal({ call, onClose }: Props) {
             }}
           />
           <div className="absolute bottom-2 sm:bottom-4 left-2 sm:left-4 text-white bg-black/70 backdrop-blur-sm px-2 sm:px-3 py-1 rounded text-xs sm:text-sm border border-gold/30">
-            الطرف الآخر
+            الطرف الآخر{remoteUserName && user?.role === 'customer' ? ` - ${remoteUserName}` : ''}
           </div>
           {!hasRemoteStream && (
             <div className="absolute inset-0 flex items-center justify-center text-white bg-black/50">
@@ -1008,6 +1053,13 @@ export default function VideoCallModal({ call, onClose }: Props) {
         >
           <X size={24} />
         </button>
+
+        {/* Call duration timer - bottom left */}
+        {callDuration > 0 && (
+          <div className="absolute bottom-4 right-4 text-white bg-black/70 backdrop-blur-sm px-3 sm:px-4 py-2 rounded-lg text-sm sm:text-base border border-gold/30 z-30 font-mono">
+            {formatDuration(callDuration)}
+          </div>
+        )}
 
         {/* Control buttons - bottom center */}
         <div className="absolute bottom-4 sm:bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3 sm:gap-4 flex-wrap justify-center z-30">

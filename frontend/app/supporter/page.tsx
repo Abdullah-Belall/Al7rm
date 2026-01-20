@@ -302,6 +302,7 @@ export default function SupporterPage() {
           key={activeCall.videoCall.roomId}
           call={activeCall.videoCall}
           onClose={() => setActiveCall(null)}
+          remoteUserName={activeCall.customer?.name}
         />
       )}
     </div>
