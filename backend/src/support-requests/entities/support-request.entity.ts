@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { VideoCall } from '../../video-calls/entities/video-call.entity';
-import { RequestCategory, RequestPriority, RequestStatus, UserLanguage } from 'src/types/enums';
+import { RequestPriority, RequestStatus, UserLanguage } from 'src/types/enums';
 
 @Entity('support_requests')
 export class SupportRequest {
@@ -30,22 +30,6 @@ export class SupportRequest {
   @ManyToOne(() => User, (user) => user.supporterRequests, { nullable: true })
   @JoinColumn({ name: 'supporterId' })
   supporter: User;
-
-  @Column({ nullable: true })
-  name: string;
-
-  @Column({ type: 'int', nullable: true  })
-  age: number;
-
-  @Column({ nullable: true })
-  nationality: string;
-
-  @Column({
-    type: 'enum',
-    enum: RequestCategory,
-    default: RequestCategory.OTHER,
-  })
-  category: RequestCategory;
 
   @Column({
     type: 'enum',
